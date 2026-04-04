@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import SkillsRadar from './components/RadarChart';
 import TerminalOverlay from './components/TerminalOverlay';
 import FKeyPanel from './components/FKeyPanel';
+import ToolboxPanel from './components/ToolboxPanel';
 
 const getKSTTime = () => {
   return new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul", hour12: false });
@@ -206,9 +207,9 @@ export default function BloombergPortfolio() {
         </div>
         <div className="hidden md:flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1">
-            <span onClick={() => document.getElementById('profile')?.scrollIntoView({ behavior: 'smooth' })} className="bg-bb-orange text-bb-black px-2 cursor-pointer font-bold border border-bb-orange">96) Actions</span>
-            <span onClick={() => document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">97) Output</span>
-            <span onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">98) Settings</span>
+            <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="bg-bb-orange text-bb-black px-2 cursor-pointer font-bold border border-bb-orange">96) Actions</button>
+            <button type="button" onClick={() => document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">97) Output</button>
+            <button type="button" onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">98) Settings</button>
           </div>
           <div className="text-bb-white font-bold w-20 text-right flicker-target">{timeKST}</div>
         </div>
@@ -361,27 +362,7 @@ export default function BloombergPortfolio() {
 
           <motion.section id="toolbox" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="border-bb col-span-1 lg:col-span-2 flex flex-col scroll-mt-20">
             <div className="panel-header"><span>{'>>'} TOOLBOX MATRIX</span></div>
-            <div className="p-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs flex-1">
-              {[
-                { fkey: "F1", name: "Claude Code", usage: "DAILY USE", desc: "매일 사용하는 핵심 AI 파트너. 워크플로우 전반의 코드 작성 담당", highlight: true },
-                { fkey: "F2", name: "Codex CLI", usage: "WEEKLY", desc: "GPT 기반 코드 리뷰어 및 디베이트 파트너", highlight: false },
-                { fkey: "F3", name: "Python", usage: "DAILY USE", desc: "모든 아키텍처의 접착제 (RAG, Pipeline)", highlight: false },
-                { fkey: "F4", name: "MCP Protocol", usage: "EXPERIMENTAL", desc: "멀티 에이전트 브릿징 및 상태 관리", highlight: false },
-              ].map((tool, i) => (
-                <div key={i} className={`border ${tool.highlight ? 'border-bb-orange bg-[#1a0f00]' : 'border-bb-border bg-bb-black'} p-2 hover:border-bb-orange transition-colors flex flex-col justify-between group cursor-pointer`}>
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center">
-                      <span className={`${tool.highlight ? 'text-bb-black bg-bb-orange' : 'text-bb-orange border border-bb-border group-hover:border-bb-orange'} px-1 mr-2 font-bold`}>
-                        &lt;{tool.fkey}&gt;
-                      </span>
-                      <span className="text-bb-white font-bold">{tool.name}</span>
-                    </div>
-                    <span className={`${tool.highlight ? 'text-bb-orange' : 'text-bb-gray'} text-[10px]`}>[{tool.usage}]</span>
-                  </div>
-                  <div className="text-bb-gray group-hover:text-bb-white transition-colors leading-tight">{tool.desc}</div>
-                </div>
-              ))}
-            </div>
+            <ToolboxPanel />
           </motion.section>
         </div>
 
