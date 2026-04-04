@@ -59,12 +59,14 @@ export default function BloombergPortfolio() {
     const sectionIds = ['profile', 'skills', 'projects', 'now', 'toolbox', 'journey', 'guestbook', 'contact'];
 
     const handleScroll = () => {
-      const scrollY = window.scrollY + 100; // offset for sticky header
       let current = 'profile';
 
       for (const id of sectionIds) {
         const el = document.getElementById(id);
-        if (el && el.offsetTop <= scrollY) {
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        // Section is "active" when its top is at or above 120px from viewport top
+        if (rect.top <= 120) {
           current = id;
         }
       }
@@ -72,7 +74,7 @@ export default function BloombergPortfolio() {
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // initial check
+    handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
@@ -221,7 +223,10 @@ export default function BloombergPortfolio() {
         {tabs.map((tab, i) => (
           <div
             key={tab.id}
-            onClick={() => document.getElementById(tab.id)?.scrollIntoView({ behavior: 'smooth' })}
+            onClick={() => {
+              setActiveTab(tab.id);
+              document.getElementById(tab.id)?.scrollIntoView({ behavior: 'smooth' });
+            }}
             className={`px-4 py-1 text-xs border-r border-bb-border whitespace-nowrap cursor-pointer hover:text-bb-orange transition-colors ${activeTab === tab.id ? 'bg-bb-orange text-bb-black font-bold hover:text-bb-black' : 'text-bb-gray'}`}
           >
             {tab.label}
