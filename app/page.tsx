@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SkillsRadar from './components/RadarChart';
 import TerminalOverlay from './components/TerminalOverlay';
@@ -52,6 +52,30 @@ export default function BloombergPortfolio() {
   const [guestbookMsg, setGuestbookMsg] = useState("");
   const [messages, setMessages] = useState<{name: string, date: string, msg: string}[]>([]);
   const [showAlert, setShowAlert] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile');
+
+  // Active tab tracking via IntersectionObserver
+  useEffect(() => {
+    const sectionIds = ['profile', 'skills', 'projects', 'now', 'toolbox', 'journey', 'guestbook', 'contact'];
+    const observers: IntersectionObserver[] = [];
+
+    sectionIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) setActiveTab(id);
+          });
+        },
+        { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
+      );
+      observer.observe(el);
+      observers.push(observer);
+    });
+
+    return () => observers.forEach((o) => o.disconnect());
+  }, []);
 
   // Time & Market Status
   useEffect(() => {
@@ -199,7 +223,7 @@ export default function BloombergPortfolio() {
           <div
             key={tab.id}
             onClick={() => document.getElementById(tab.id)?.scrollIntoView({ behavior: 'smooth' })}
-            className={`px-4 py-1 text-xs border-r border-bb-border whitespace-nowrap cursor-pointer hover:text-bb-orange transition-colors ${i === 0 ? 'bg-bb-orange text-bb-black font-bold hover:text-bb-black' : 'text-bb-gray'}`}
+            className={`px-4 py-1 text-xs border-r border-bb-border whitespace-nowrap cursor-pointer hover:text-bb-orange transition-colors ${activeTab === tab.id ? 'bg-bb-orange text-bb-black font-bold hover:text-bb-black' : 'text-bb-gray'}`}
           >
             {tab.label}
           </div>
