@@ -347,11 +347,11 @@ export default function BloombergPortfolio() {
                   <tr><td className="py-1">Coverage</td><td className="text-right text-bb-white">Institutional & Corporate</td></tr>
                   <tr><td className="py-1">Products</td><td className="text-right text-bb-white">FX / Rates / Credit</td></tr>
                   <tr><td className="py-1">Education</td><td className="text-right text-bb-white">UPenn MCIT / Melbourne BCom</td></tr>
-                  <tr><td className="py-1">Certifications</td><td className="text-right text-bb-amber">CFA, EPAT</td></tr>
+                  <tr><td className="py-1">Certifications</td><td className="text-right text-bb-amber">CFA, CAIA, EPAT</td></tr>
                   <tr><td className="py-1">Languages</td><td className="text-right text-bb-white">Korean, English</td></tr>
                   <tr><td className="py-1">AI Start</td><td className="text-right text-bb-white">2026.01</td></tr>
                   <tr><td className="py-1">AI Focus</td><td className="text-right text-bb-orange">Agent Orchestration</td></tr>
-                  <tr><td className="py-1">Key Projects</td><td className="text-right text-bb-white flicker-target">3</td></tr>
+                  <tr><td className="py-1">Key Projects</td><td className="text-right text-bb-white flicker-target">8</td></tr>
                   <tr><td className="py-1">Tech Stacks</td><td className="text-right text-bb-white"><span className="flicker-target">5</span>+</td></tr>
                   <tr><td className="py-1">Skills</td><td className="text-right text-bb-white flicker-target">48+</td></tr>
                   <tr><td className="py-1">Status</td><td className="text-right text-bb-green"><span className="inline-flex items-center"><span className="w-2 h-2 bg-bb-green mr-1 animate-pulse" /> ACTIVE</span></td></tr>

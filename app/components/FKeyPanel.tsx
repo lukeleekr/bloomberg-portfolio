@@ -42,7 +42,7 @@ const FKEY_DATA: FKeyData[] = [
       { field: 'Products', value: 'FX, Structured Rates, Credit, Commodities' },
       { field: 'Coverage', value: 'Institutional Investors & Corporates' },
       { field: 'Speciality', value: 'Derivatives Structuring, eFX Platform' },
-      { field: 'Certifications', value: 'CFA, EPAT (QuantInsti)' },
+      { field: 'Certifications', value: 'CFA, CAIA, EPAT (QuantInsti)' },
       { field: 'Role', value: 'Sales & Structuring — Deal Architect' },
     ],
     note: '단순한 세일즈가 아닌, 딜의 구조를 설계하고 클라이언트에게 차별화된 가치를 전달하는 Deal Architect.',
