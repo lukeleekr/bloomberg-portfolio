@@ -145,7 +145,16 @@ export default function BloombergPortfolio() {
     setGuestbookMsg("");
   };
 
-  const tabs = ['1) Profile', '2) Skills', '3) Projects', '4) Now', '5) Toolbox', '6) Journey', '7) Guestbook', '8) Contact'];
+  const tabs = [
+    { label: '1) Profile', id: 'profile' },
+    { label: '2) Skills', id: 'skills' },
+    { label: '3) Projects', id: 'projects' },
+    { label: '4) Now', id: 'now' },
+    { label: '5) Toolbox', id: 'toolbox' },
+    { label: '6) Journey', id: 'journey' },
+    { label: '7) Guestbook', id: 'guestbook' },
+    { label: '8) Contact', id: 'contact' },
+  ];
 
   return (
     <div className="min-h-screen flex flex-col pb-20">
@@ -188,11 +197,11 @@ export default function BloombergPortfolio() {
       <nav className="flex overflow-x-auto border-b border-bb-border bg-bb-black sticky top-[33px] md:top-8 z-30 scrollbar-hide">
         {tabs.map((tab, i) => (
           <div
-            key={i}
-            onClick={() => document.getElementById(tab.split(')')[1].trim().toLowerCase())?.scrollIntoView({ behavior: 'smooth' })}
+            key={tab.id}
+            onClick={() => document.getElementById(tab.id)?.scrollIntoView({ behavior: 'smooth' })}
             className={`px-4 py-1 text-xs border-r border-bb-border whitespace-nowrap cursor-pointer hover:text-bb-orange transition-colors ${i === 0 ? 'bg-bb-orange text-bb-black font-bold hover:text-bb-black' : 'text-bb-gray'}`}
           >
-            {tab}
+            {tab.label}
           </div>
         ))}
       </nav>
@@ -390,7 +399,7 @@ export default function BloombergPortfolio() {
               <div className="w-full sm:w-1/2 flex flex-col gap-2">
                 <input type="text" placeholder="NAME: [____]" value={guestbookName} onChange={e => setGuestbookName(e.target.value)} className="bg-bb-black border border-bb-border text-bb-white text-xs p-1 outline-none focus:border-bb-orange" />
                 <textarea placeholder="MSG: [____]" value={guestbookMsg} onChange={e => setGuestbookMsg(e.target.value)} className="bg-bb-black border border-bb-border text-bb-white text-xs p-1 outline-none focus:border-bb-orange resize-none h-16" />
-                <button onClick={handleGuestbookSubmit} className="bg-bb-orange text-bb-black text-xs font-bold py-1 hover:bg-[#cc5200] transition-colors border-none">&lt;1&gt; SUBMIT</button>
+                <button onClick={handleGuestbookSubmit} className="bg-bb-orange text-bb-black text-xs font-bold py-1 hover:bg-[#cc5200] transition-colors border-none">SUBMIT</button>
               </div>
               <div className="w-full sm:w-1/2 border-t sm:border-t-0 sm:border-l border-bb-border pt-2 sm:pt-0 sm:pl-4 overflow-y-auto max-h-32 scrollbar-hide">
                 <div className="text-bb-gray text-[10px] mb-2 border-b border-bb-border pb-1">RECENT MESSAGES</div>

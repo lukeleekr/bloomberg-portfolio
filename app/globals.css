@@ -21,7 +21,7 @@
     @apply text-bb-amber font-bold p-1 bg-bb-black border-b border-bb-border text-sm uppercase flex justify-between items-center;
   }
   .animate-ticker {
-    animation: ticker 20s linear infinite;
+    animation: ticker 45s linear infinite;
   }
   .animate-ticker:hover {
     animation-play-state: paused;
