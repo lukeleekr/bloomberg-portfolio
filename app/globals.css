@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bb-black text-bb-white font-mono antialiased m-0 p-0 overflow-x-hidden scroll-smooth;
+    word-break: keep-all;
+  }
+
+  * {
+    border-radius: 0 !important;
+  }
+}
+
+@layer utilities {
+  .border-bb {
+    @apply border border-bb-border;
+  }
+  .panel-header {
+    @apply text-bb-amber font-bold p-1 bg-bb-black border-b border-bb-border text-sm uppercase flex justify-between items-center;
+  }
+  .animate-ticker {
+    animation: ticker 20s linear infinite;
+  }
+  .animate-ticker:hover {
+    animation-play-state: paused;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes ticker {
+  0% { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes flickerFast {
+  0% { opacity: 1; text-shadow: none; }
+  50% { opacity: 0.5; color: #FF6600; text-shadow: 0 0 5px #FF6600; }
+  100% { opacity: 1; text-shadow: none; }
+}
+
+.animate-flicker {
+  animation: flickerFast 0.3s ease-in-out;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+  border-left: 1px solid #333333;
+  border-top: 1px solid #333333;
+}
+::-webkit-scrollbar-thumb {
+  background: #333333;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF6600;
+}
