@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SkillsRadar from './components/RadarChart';
 import TerminalOverlay from './components/TerminalOverlay';
+import FKeyPanel from './components/FKeyPanel';
 
 const getKSTTime = () => {
   return new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul", hour12: false });
@@ -35,12 +36,6 @@ const SkillBar = ({ name, percent }: { name: string, percent: number }) => (
   </div>
 );
 
-const FKey = ({ num, label }: { num: string, label: string }) => (
-  <div className="border border-bb-border px-2 py-1 text-xs hover:border-bb-orange hover:shadow-[0_0_5px_#FF6600] transition-colors cursor-pointer inline-flex mr-1 mb-1 bg-bb-black">
-    <span className="text-bb-orange mr-1">&lt;{num}&gt;</span>
-    <span className="text-bb-white">{label}</span>
-  </div>
-);
 
 export default function BloombergPortfolio() {
   const [timeKST, setTimeKST] = useState<string>("");
@@ -211,9 +206,9 @@ export default function BloombergPortfolio() {
         </div>
         <div className="hidden md:flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1">
-            <span className="bg-bb-orange text-bb-black px-2 cursor-pointer font-bold border border-bb-orange">96) Actions</span>
-            <span className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">97) Output</span>
-            <span className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">98) Settings</span>
+            <span onClick={() => document.getElementById('profile')?.scrollIntoView({ behavior: 'smooth' })} className="bg-bb-orange text-bb-black px-2 cursor-pointer font-bold border border-bb-orange">96) Actions</span>
+            <span onClick={() => document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">97) Output</span>
+            <span onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">98) Settings</span>
           </div>
           <div className="text-bb-white font-bold w-20 text-right flicker-target">{timeKST}</div>
         </div>
@@ -249,13 +244,7 @@ export default function BloombergPortfolio() {
               <p className="text-bb-gray text-xs leading-relaxed mb-4">
                 10년차 금융 시장 전문가. <span className="text-bb-white">FX</span>, <span className="text-bb-white">크레딧</span>, <span className="text-bb-white">DCM</span> 영역에서 딜을 설계해왔고, 2026년 1월 <span className="text-bb-white">Claude Code</span>를 만난 후 <span className="text-bb-white">AI 코딩</span>과 <span className="text-bb-white">에이전트 프로그래밍</span>에 깊이 빠져들었습니다.
               </p>
-              <div className="flex flex-wrap">
-                <FKey num="F1" label="Python" />
-                <FKey num="F2" label="Claude Code" />
-                <FKey num="F3" label="FX/Credit" />
-                <FKey num="F4" label="RAG Systems" />
-                <FKey num="F5" label="Macro" />
-              </div>
+              <FKeyPanel />
             </div>
             <div className="border-t md:border-t-0 md:border-l border-bb-border pt-4 md:pt-0 md:pl-4 font-mono text-xs">
               <table className="w-full">
@@ -399,22 +388,51 @@ export default function BloombergPortfolio() {
         {/* 6) JOURNEY */}
         <motion.section id="journey" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="border-bb col-span-1 lg:col-span-12 flex flex-col scroll-mt-20">
           <div className="panel-header"><span>{'>>'} LEARNING JOURNEY</span></div>
-          <div className="p-6 pt-10 pb-8 flex-1 overflow-x-auto scrollbar-hide">
-            <div className="min-w-[600px] relative">
-              <div className="absolute top-0 left-0 w-full h-1 bg-bb-border" />
-              <motion.div initial={{ width: 0 }} whileInView={{ width: '85%' }} viewport={{ once: true }} transition={{ duration: 1.5, ease: "easeOut" }} className="absolute top-0 left-0 h-1 bg-bb-orange" />
-              {[
-                { pos: "0%", year: "2016~", title: "Finance Expert", desc: "FX/Credit 딜 설계", active: false },
-                { pos: "40%", year: "2026.01", title: "AI 코딩 입문", desc: "Claude Code 조우", active: false },
-                { pos: "85%", year: "현재", title: "Agent Programming", desc: "Harness 학습 중", active: true },
-              ].map((point, i) => (
-                <div key={i} className="absolute flex flex-col items-center" style={{ left: point.pos, transform: 'translateX(-50%)', top: '-4px' }}>
-                  <div className={`w-2 h-3 ${point.active ? 'bg-bb-green animate-pulse' : 'bg-bb-orange'}`} />
-                  <div className="mt-4 text-xs font-bold text-bb-amber">{point.year}</div>
-                  <div className="text-xs text-bb-white font-bold mt-1 whitespace-nowrap">{point.title}</div>
-                  <div className="text-xs text-bb-gray mt-1 whitespace-nowrap">{point.desc}</div>
-                </div>
-              ))}
+          <div className="p-4">
+            {/* Timeline as table — no cutoff issues */}
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-bb-border text-bb-gray">
+                  <th className="text-left font-normal py-1 w-24">PERIOD</th>
+                  <th className="text-left font-normal py-1 w-40">PHASE</th>
+                  <th className="text-left font-normal py-1">DETAILS</th>
+                  <th className="text-right font-normal py-1 w-20">STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b border-bb-border">
+                  <td className="py-2 text-bb-amber font-bold">2016 ~</td>
+                  <td className="py-2 text-bb-orange font-bold">Finance Expert</td>
+                  <td className="py-2 text-bb-white">금융시장 입문. FX, Credit, DCM 영역에서 딜 설계 및 구조화. 기관투자자 커버리지, Cross-border 자금 흐름 설계. 10년간 Deal Architect로 성장.</td>
+                  <td className="py-2 text-right text-bb-white">COMPLETE</td>
+                </tr>
+                <tr className="border-b border-bb-border">
+                  <td className="py-2 text-bb-amber font-bold">2026.01</td>
+                  <td className="py-2 text-bb-orange font-bold">AI 코딩 입문</td>
+                  <td className="py-2 text-bb-white">Claude Code와의 첫 만남. Python 학습 시작. 3개월 만에 COSMOS, Multi-Model Bridge, Intelligence Pipeline 구축. AI 코딩의 가능성에 눈을 뜸.</td>
+                  <td className="py-2 text-right text-bb-white">COMPLETE</td>
+                </tr>
+                <tr className="border-b border-bb-border">
+                  <td className="py-2 text-bb-amber font-bold">2026.04</td>
+                  <td className="py-2 text-bb-orange font-bold">Agent Programming</td>
+                  <td className="py-2 text-bb-white">Harness Engineering과 Agent Orchestration 집중 학습. Claude Code 워크플로우 최적화. 멀티 에이전트 시스템 설계 및 MCP 프로토콜 탐구.</td>
+                  <td className="py-2 text-right"><span className="inline-flex items-center text-bb-green"><span className="w-1.5 h-1.5 bg-bb-green mr-1 animate-pulse"/>ACTIVE</span></td>
+                </tr>
+                <tr>
+                  <td className="py-2 text-bb-gray">NEXT</td>
+                  <td className="py-2 text-bb-gray">Open Source 기여</td>
+                  <td className="py-2 text-bb-gray">Claude Code 성능 최적화 기여. 금융 × AI 도메인의 오픈소스 도구 개발.</td>
+                  <td className="py-2 text-right text-bb-gray">PLANNED</td>
+                </tr>
+              </tbody>
+            </table>
+            {/* Progress bar */}
+            <div className="mt-4 flex items-center gap-2">
+              <span className="text-bb-gray text-[10px]">PROGRESS</span>
+              <div className="flex-1 h-2 bg-bb-border">
+                <motion.div initial={{ width: 0 }} whileInView={{ width: '65%' }} viewport={{ once: true }} transition={{ duration: 1.5, ease: "easeOut" }} className="h-full bg-bb-orange" />
+              </div>
+              <span className="text-bb-orange text-[10px] font-bold">65%</span>
             </div>
           </div>
         </motion.section>
