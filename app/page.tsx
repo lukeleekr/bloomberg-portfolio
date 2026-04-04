@@ -49,6 +49,7 @@ export default function BloombergPortfolio() {
   const [messages, setMessages] = useState<{name: string, date: string, msg: string}[]>([]);
   const [showAlert, setShowAlert] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
+  const [activeBtn, setActiveBtn] = useState('96');
 
   // Active tab tracking via scroll position
   useEffect(() => {
@@ -207,9 +208,9 @@ export default function BloombergPortfolio() {
         </div>
         <div className="hidden md:flex items-center gap-4 text-xs">
           <div className="flex items-center gap-1">
-            <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="bg-bb-orange text-bb-black px-2 cursor-pointer font-bold border border-bb-orange">96) Actions</button>
-            <button type="button" onClick={() => document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">97) Output</button>
-            <button type="button" onClick={() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' })} className="border border-bb-border text-bb-gray px-2 hover:border-bb-orange hover:text-bb-orange cursor-pointer">98) Settings</button>
+            <button type="button" onClick={() => { setActiveBtn('96'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className={`px-2 cursor-pointer font-bold border ${activeBtn === '96' ? 'bg-bb-orange text-bb-black border-bb-orange' : 'border-bb-border text-bb-gray hover:border-bb-orange hover:text-bb-orange'}`}>96) Actions</button>
+            <button type="button" onClick={() => { setActiveBtn('97'); document.getElementById('projects')?.scrollIntoView({ behavior: 'smooth' }); }} className={`px-2 cursor-pointer font-bold border ${activeBtn === '97' ? 'bg-bb-orange text-bb-black border-bb-orange' : 'border-bb-border text-bb-gray hover:border-bb-orange hover:text-bb-orange'}`}>97) Output</button>
+            <button type="button" onClick={() => { setActiveBtn('98'); document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }); }} className={`px-2 cursor-pointer font-bold border ${activeBtn === '98' ? 'bg-bb-orange text-bb-black border-bb-orange' : 'border-bb-border text-bb-gray hover:border-bb-orange hover:text-bb-orange'}`}>98) Settings</button>
           </div>
           <div className="text-bb-white font-bold w-20 text-right flicker-target">{timeKST}</div>
         </div>

@@ -91,21 +91,20 @@ export default function ToolboxPanel() {
             <div
               onClick={() => setOpenKey(openKey === tool.fkey ? null : tool.fkey)}
               className={`border p-2 cursor-pointer transition-all ${
-                tool.highlight ? 'border-bb-orange bg-[#1a0f00]' : 'border-bb-border bg-bb-black hover:border-bb-orange'
-              } ${openKey === tool.fkey ? 'border-bb-orange shadow-[0_0_8px_#FF6600]' : ''}`}
+                openKey === tool.fkey ? 'border-bb-orange bg-[#1a0f00] shadow-[0_0_8px_#FF6600]' : 'border-bb-border bg-bb-black hover:border-bb-orange'
+              }`}
             >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex items-center">
                   <span className={`px-1 mr-2 font-bold ${
                     openKey === tool.fkey ? 'text-bb-black bg-bb-orange' :
-                    tool.highlight ? 'text-bb-black bg-bb-orange' :
                     'text-bb-orange border border-bb-border'
                   }`}>
                     &lt;{tool.fkey}&gt;
                   </span>
                   <span className="text-bb-white font-bold">{tool.name}</span>
                 </div>
-                <span className={`text-[10px] ${tool.highlight ? 'text-bb-orange' : 'text-bb-gray'}`}>[{tool.usage}]</span>
+                <span className={`text-[10px] ${openKey === tool.fkey ? 'text-bb-orange' : 'text-bb-gray'}`}>[{tool.usage}]</span>
               </div>
               <div className="text-bb-gray leading-tight">{tool.desc}</div>
               <div className="text-bb-gray text-[10px] mt-1">CLICK TO {openKey === tool.fkey ? 'CLOSE' : 'EXPAND'} ▾</div>
