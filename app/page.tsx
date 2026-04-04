@@ -512,7 +512,7 @@ export default function BloombergPortfolio() {
                     <motion.div
                       initial={{ rotateX: 2160 }}
                       whileInView={{ rotateX: 0 }}
-                      viewport={{ once: false, amount: 0.3 }}
+                      viewport={{ once: true, amount: 0.3 }}
                       transition={{ duration: 1.8, delay: 0, ease: [0, 0, 0.3, 1] }}
                       style={{ transformOrigin: "center center" }}
                       onClick={() => setOpenProject(openProject === p.num ? null : p.num)}
