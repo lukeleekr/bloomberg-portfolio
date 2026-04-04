@@ -36,16 +36,16 @@ const FKEY_DATA: FKeyData[] = [
     note: '2026년 1월 첫 만남 이후, 매일 사용하는 핵심 AI 코딩 파트너. Harness engineering과 agent orchestration을 이 도구로 학습 중.',
   },
   {
-    key: 'F3', label: 'FX/Credit', title: 'FX & CREDIT MARKET COVERAGE',
+    key: 'F3', label: 'FX/Rates', title: 'FX & RATES MARKET COVERAGE',
     rows: [
       { field: 'Experience', value: '10+ years' },
-      { field: 'Products', value: 'FX Spot/Forward/Options, Credit, DCM' },
-      { field: 'Coverage', value: 'Institutional Investors, BBD' },
-      { field: 'Speciality', value: 'Cross-border Flows, Structuring' },
-      { field: 'Markets', value: 'KRW, USD, EUR, CNH' },
-      { field: 'Role', value: 'Deal Architecture & Narrative Building' },
+      { field: 'Products', value: 'FX, Structured Rates, Credit, Commodities' },
+      { field: 'Coverage', value: 'Institutional Investors & Corporates' },
+      { field: 'Speciality', value: 'Derivatives Structuring, eFX Platform' },
+      { field: 'Certifications', value: 'CFA, EPAT (QuantInsti)' },
+      { field: 'Role', value: 'Sales & Structuring — Deal Architect' },
     ],
-    note: '단순한 세일즈가 아닌, 딜의 구조를 설계하고 스토리를 만드는 Deal Architect.',
+    note: '단순한 세일즈가 아닌, 딜의 구조를 설계하고 클라이언트에게 차별화된 가치를 전달하는 Deal Architect.',
   },
   {
     key: 'F4', label: 'RAG Systems', title: 'RAG PIPELINE ARCHITECTURE',
