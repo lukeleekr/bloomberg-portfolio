@@ -11,8 +11,8 @@ const data = [
 
 export default function SkillsRadar() {
   return (
-    <div className="w-full h-full min-h-[250px] bg-bb-black text-xs">
-      <ResponsiveContainer width="100%" height="100%">
+    <div className="w-full bg-bb-black text-xs" style={{ height: 280 }}>
+      <ResponsiveContainer width="100%" height={280}>
         <RadarChart cx="50%" cy="50%" outerRadius="65%" data={data}>
           <PolarGrid stroke="#333333" />
           <PolarAngleAxis dataKey="subject" tick={{ fill: '#FFB800', fontSize: 10 }} />
