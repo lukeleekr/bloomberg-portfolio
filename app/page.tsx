@@ -54,27 +54,26 @@ export default function BloombergPortfolio() {
   const [showAlert, setShowAlert] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
 
-  // Active tab tracking via IntersectionObserver
+  // Active tab tracking via scroll position
   useEffect(() => {
     const sectionIds = ['profile', 'skills', 'projects', 'now', 'toolbox', 'journey', 'guestbook', 'contact'];
-    const observers: IntersectionObserver[] = [];
 
-    sectionIds.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) setActiveTab(id);
-          });
-        },
-        { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
-      );
-      observer.observe(el);
-      observers.push(observer);
-    });
+    const handleScroll = () => {
+      const scrollY = window.scrollY + 100; // offset for sticky header
+      let current = 'profile';
 
-    return () => observers.forEach((o) => o.disconnect());
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (el && el.offsetTop <= scrollY) {
+          current = id;
+        }
+      }
+      setActiveTab(current);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // initial check
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Time & Market Status
