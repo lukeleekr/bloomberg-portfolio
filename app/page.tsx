@@ -1,5 +1,5 @@
-"use client";
-import React, { useState, useEffect, useCallback } from 'react';
+'use client';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import SkillsRadar from './components/RadarChart';
 import TerminalOverlay from './components/TerminalOverlay';
@@ -37,17 +37,20 @@ const SkillBar = ({ name, percent }: { name: string, percent: number }) => (
   </div>
 );
 
+type GuestbookMessage = { id: string; name: string; message: string; created_at: string };
 
 export default function BloombergPortfolio() {
-  const [timeKST, setTimeKST] = useState<string>("");
+  const [timeKST, setTimeKST] = useState<string>('');
   const [marketOpen, setMarketOpen] = useState<boolean>(false);
-  const [typewriterText, setTypewriterText] = useState("");
-  const fullText = "10년차 금융 전문가, 2026년 1월부터 AI 코딩에 빠지다";
+  const [typewriterText, setTypewriterText] = useState('');
+  const fullText = '10년차 금융 전문가, 2026년 1월부터 AI 코딩에 빠지다';
 
-  const [guestbookName, setGuestbookName] = useState("");
-  const [guestbookMsg, setGuestbookMsg] = useState("");
-  const [messages, setMessages] = useState<{id: string, name: string, date: string, msg: string}[]>([]);
-  const [myMsgIds, setMyMsgIds] = useState<Set<string>>(new Set());
+  const [guestbookName, setGuestbookName] = useState('');
+  const [guestbookMsg, setGuestbookMsg] = useState('');
+  const [messages, setMessages] = useState<GuestbookMessage[]>([]), [messagesLoading, setMessagesLoading] = useState(true), [messagesError, setMessagesError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false), [submitError, setSubmitError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false), [adminModalOpen, setAdminModalOpen] = useState(false), [adminPassword, setAdminPassword] = useState(''), [adminError, setAdminError] = useState<string | null>(null), [adminLoading, setAdminLoading] = useState(false);
+  const [visits, setVisits] = useState<{ today: number; total: number } | null>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [activeBtn, setActiveBtn] = useState('96');
@@ -183,37 +186,125 @@ export default function BloombergPortfolio() {
     }
   }, []);
 
-  // Guestbook
+  const closeAdminModal = () => { setAdminModalOpen(false); setAdminPassword(''); setAdminError(null); };
+
+  // Load comments
   useEffect(() => {
-    const saved = localStorage.getItem('bb_guestbook');
-    if (saved) setMessages(JSON.parse(saved));
-    const ownIds = localStorage.getItem('bb_my_msgs');
-    if (ownIds) setMyMsgIds(new Set(JSON.parse(ownIds)));
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/guestbook', { cache: 'no-store' });
+        if (!res.ok) throw new Error('fetch failed');
+        const json = await res.json();
+        if (!cancelled) {
+          setMessages(json.comments ?? []);
+          setMessagesError(null);
+          setMessagesLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setMessagesError('FAILED TO LOAD');
+          setMessagesLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const handleGuestbookSubmit = () => {
-    if (!guestbookName || !guestbookMsg) return;
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const newMsg = {
-      id,
-      name: guestbookName,
-      date: new Date().toLocaleDateString('ko-KR').replace(/\. /g, '.').replace(/\.$/, ''),
-      msg: guestbookMsg
-    };
-    const updated = [newMsg, ...messages].slice(0, 50);
-    setMessages(updated);
-    localStorage.setItem('bb_guestbook', JSON.stringify(updated));
-    const newMyIds = new Set(myMsgIds).add(id);
-    setMyMsgIds(newMyIds);
-    localStorage.setItem('bb_my_msgs', JSON.stringify([...newMyIds]));
-    setGuestbookName("");
-    setGuestbookMsg("");
+  // Check admin status on mount
+  useEffect(() => {
+    fetch('/api/admin/me', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((j) => setIsAdmin(!!j.isAdmin))
+      .catch(() => setIsAdmin(false));
+  }, []);
+
+  // Visit counter: increment once per session, otherwise just read
+  useEffect(() => {
+    const pinged = sessionStorage.getItem('bb_visit_pinged');
+    (pinged ? fetch('/api/visits', { cache: 'no-store' }) : fetch('/api/visits', { method: 'POST', cache: 'no-store' }))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j && typeof j.today === 'number' && typeof j.total === 'number') {
+          setVisits({ today: j.today, total: j.total });
+          if (!pinged) sessionStorage.setItem('bb_visit_pinged', '1');
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!adminModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') { setAdminModalOpen(false); setAdminPassword(''); setAdminError(null); } };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [adminModalOpen]);
+
+  const handleGuestbookSubmit = async () => {
+    if (!guestbookName.trim() || !guestbookMsg.trim() || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const res = await fetch('/api/guestbook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: guestbookName.trim(),
+          message: guestbookMsg.trim(),
+        }),
+      });
+      if (!res.ok) {
+        setSubmitError('POST FAILED — TRY AGAIN');
+        return;
+      }
+      const json = await res.json();
+      if (!json.comment) { setSubmitError('POST FAILED — TRY AGAIN'); return; }
+      setMessagesError(null);
+      setMessages((prev) => [json.comment, ...prev].slice(0, 50));
+      setGuestbookName('');
+      setGuestbookMsg('');
+    } catch {
+      setSubmitError('NETWORK ERROR');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleGuestbookDelete = (id: string) => {
-    const updated = messages.filter(m => m.id !== id);
-    setMessages(updated);
-    localStorage.setItem('bb_guestbook', JSON.stringify(updated));
+  const handleGuestbookDelete = async (id: string) => {
+    if (!isAdmin) return;
+    const prev = messages;
+    setMessages(prev.filter((m) => m.id !== id));
+    try {
+      const res = await fetch(`/api/guestbook/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setMessages(prev);
+      }
+    } catch {
+      setMessages(prev);
+    }
+  };
+
+  const handleAdminLogin = async () => {
+    if (adminLoading) return;
+    setAdminLoading(true);
+    setAdminError(null);
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: adminPassword }),
+      });
+      if (res.ok) { setIsAdmin(true); closeAdminModal(); } else { setAdminError('Invalid password'); }
+    } catch {
+      setAdminError('Network error');
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  const handleAdminLogout = async () => {
+    await fetch('/api/admin/logout', { method: 'POST' });
+    setIsAdmin(false);
   };
 
   // Navigate to section: sets tab immediately and locks scroll detection during animation
@@ -255,6 +346,22 @@ export default function BloombergPortfolio() {
         )}
       </AnimatePresence>
 
+      {adminModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={closeAdminModal}>
+          <div className="border-bb bg-bb-black p-4 w-72" onClick={(e) => e.stopPropagation()}>
+            <div className="panel-header"><span>{'>>'} ADMIN LOGIN</span></div>
+            <div className="p-3 flex flex-col gap-2">
+              <input type="password" autoFocus placeholder="PASSWORD" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAdminLogin(); }} className="bg-bb-black border border-bb-border text-bb-white text-xs p-1 outline-none focus:border-bb-orange" />
+              {adminError && <div className="text-bb-red text-[10px]">{adminError}</div>}
+              <div className="flex gap-2">
+                <button onClick={handleAdminLogin} disabled={adminLoading || !adminPassword} className="flex-1 bg-bb-orange text-bb-black text-xs font-bold py-1 hover:bg-[#cc5200] disabled:opacity-50 transition-colors border-none">{adminLoading ? 'CHECKING…' : 'LOGIN'}</button>
+                <button onClick={closeAdminModal} className="px-3 text-bb-gray hover:text-bb-white text-xs border border-bb-border">CANCEL</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="border-b border-bb-border flex flex-col md:flex-row md:items-center justify-between px-2 py-1 bg-bb-black sticky top-0 z-40">
         <div className="flex items-center gap-4 justify-between w-full md:w-auto">
           <div className="flex items-center gap-2">
@@ -269,6 +376,7 @@ export default function BloombergPortfolio() {
             <button type="button" onClick={() => { setActiveBtn('97'); window.print(); setShowActions(false); }} className={`px-2 cursor-pointer font-bold border ${activeBtn === '97' ? 'bg-bb-orange text-bb-black border-bb-orange' : 'border-bb-border text-bb-gray hover:border-bb-orange hover:text-bb-orange'}`}>97) Print</button>
             <button type="button" onClick={() => { setActiveBtn('98'); window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' })); setShowActions(false); }} className={`px-2 cursor-pointer font-bold border ${activeBtn === '98' ? 'bg-bb-orange text-bb-black border-bb-orange' : 'border-bb-border text-bb-gray hover:border-bb-orange hover:text-bb-orange'}`}>98) Terminal</button>
           </div>
+          {visits && <div className="hidden sm:flex items-center gap-2 text-xs"><span className="text-bb-gray">VISITS</span><span className="text-bb-orange font-bold">TODAY {visits.today.toLocaleString()}</span><span className="text-bb-gray">|</span><span className="text-bb-amber font-bold">TOTAL {visits.total.toLocaleString()}</span></div>}
           <div className="text-bb-white font-bold w-20 text-right flicker-target">{timeKST}</div>
           {/* 96) Actions Dropdown */}
           <AnimatePresence>
@@ -633,22 +741,19 @@ export default function BloombergPortfolio() {
               <div className="w-full sm:w-1/2 flex flex-col gap-2">
                 <input type="text" placeholder="NAME: [____]" value={guestbookName} onChange={e => setGuestbookName(e.target.value)} className="bg-bb-black border border-bb-border text-bb-white text-xs p-1 outline-none focus:border-bb-orange" />
                 <textarea placeholder="MSG: [____]" value={guestbookMsg} onChange={e => setGuestbookMsg(e.target.value)} className="bg-bb-black border border-bb-border text-bb-white text-xs p-1 outline-none focus:border-bb-orange resize-none h-16" />
-                <button onClick={handleGuestbookSubmit} className="bg-bb-orange text-bb-black text-xs font-bold py-1 hover:bg-[#cc5200] transition-colors border-none">SUBMIT</button>
+                <button onClick={handleGuestbookSubmit} disabled={submitting || !guestbookName.trim() || !guestbookMsg.trim()} className="bg-bb-orange text-bb-black text-xs font-bold py-1 hover:bg-[#cc5200] disabled:opacity-50 transition-colors border-none">{submitting ? 'POSTING…' : 'SUBMIT'}</button>
+                {submitError && <div className="text-bb-red text-[10px]">{submitError}</div>}
               </div>
               <div className="w-full sm:w-1/2 border-t sm:border-t-0 sm:border-l border-bb-border pt-2 sm:pt-0 sm:pl-4 overflow-y-auto max-h-32 scrollbar-hide">
                 <div className="text-bb-gray text-[10px] mb-2 border-b border-bb-border pb-1">RECENT MESSAGES</div>
-                {messages.length === 0 ? (
-                  <div className="text-bb-gray text-xs italic">No messages yet.</div>
-                ) : (
+                {messagesLoading ? <div className="text-bb-gray text-xs italic">LOADING…</div> : messagesError ? <div className="text-bb-red text-xs italic">{messagesError}</div> : messages.length === 0 ? <div className="text-bb-gray text-xs italic">No messages yet.</div> : (
                   messages.slice(0, 5).map((m, i) => (
                     <div key={m.id || i} className="mb-2 group/msg">
                       <div className="text-xs text-bb-amber flex justify-between items-center">
-                        <span>{m.name} <span className="text-bb-gray ml-2 text-[10px]">{m.date}</span></span>
-                        {myMsgIds.has(m.id) && (
-                          <button onClick={() => handleGuestbookDelete(m.id)} className="text-bb-gray hover:text-bb-red text-[10px] opacity-0 group-hover/msg:opacity-100 transition-opacity">DEL</button>
-                        )}
+                        <span>{m.name} <span className="text-bb-gray ml-2 text-[10px]">{new Date(m.created_at).toLocaleDateString('ko-KR')}</span></span>
+                        {isAdmin && <button onClick={() => handleGuestbookDelete(m.id)} className="text-bb-gray hover:text-bb-red text-[10px] opacity-0 group-hover/msg:opacity-100 transition-opacity">DEL</button>}
                       </div>
-                      <div className="text-xs text-bb-white">{m.msg}</div>
+                      <div className="text-xs text-bb-white">{m.message}</div>
                     </div>
                   ))
                 )}
@@ -667,6 +772,7 @@ export default function BloombergPortfolio() {
                   <tr><td className="py-2 text-bb-amber">Email</td><td className="py-2"><a href="mailto:lukeleekr@gmail.com" className="text-bb-orange hover:text-bb-white underline decoration-bb-border underline-offset-4">lukeleekr@gmail.com</a></td></tr>
                 </tbody>
               </table>
+              <div className="text-right text-[10px] mt-2 font-mono">{isAdmin ? <><span className="text-bb-orange">● ADMIN MODE</span><button onClick={handleAdminLogout} className="ml-2 text-bb-gray hover:text-bb-red">[LOGOUT]</button></> : <button onClick={() => setAdminModalOpen(true)} className="text-bb-gray hover:text-bb-orange">[ADMIN]</button>}</div>
             </div>
           </motion.section>
         </div>
