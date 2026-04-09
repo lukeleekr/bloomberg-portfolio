@@ -747,7 +747,7 @@ export default function BloombergPortfolio() {
               <div className="w-full sm:w-1/2 border-t sm:border-t-0 sm:border-l border-bb-border pt-2 sm:pt-0 sm:pl-4 overflow-y-auto max-h-32 scrollbar-hide">
                 <div className="text-bb-gray text-[10px] mb-2 border-b border-bb-border pb-1">RECENT MESSAGES</div>
                 {messagesLoading ? <div className="text-bb-gray text-xs italic">LOADING…</div> : messagesError ? <div className="text-bb-red text-xs italic">{messagesError}</div> : messages.length === 0 ? <div className="text-bb-gray text-xs italic">No messages yet.</div> : (
-                  messages.slice(0, 5).map((m, i) => (
+                  messages.slice(0, 20).map((m, i) => (
                     <div key={m.id || i} className="mb-2 group/msg">
                       <div className="text-xs text-bb-amber flex justify-between items-center">
                         <span>{m.name} <span className="text-bb-gray ml-2 text-[10px]">{new Date(m.created_at).toLocaleDateString('ko-KR')}</span></span>
