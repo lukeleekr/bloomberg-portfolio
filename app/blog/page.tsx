@@ -30,7 +30,7 @@ export default async function BlogListPage() {
 
       <section className='mx-auto max-w-[900px] px-6 py-6'>
         {posts.length === 0 ? (
-          <p className='text-lg text-bb-amber'>NO POSTS YET</p>
+          <p className='py-24 text-center text-lg text-bb-amber'>NO POSTS YET</p>
         ) : (
           <ul>
             {posts.map((post) => (
