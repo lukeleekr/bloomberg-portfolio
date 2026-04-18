@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { customAlphabet } from 'nanoid'
 import { useRouter } from 'next/navigation'
 import type { Post, PostStatus } from '../../lib/posts-shared'
 import {
@@ -10,6 +11,8 @@ import {
   isValidSlug,
   isValidTitle,
 } from '../../lib/posts-shared'
+import { uploadImage, ImageClientError } from '../../lib/images-client'
+import { isAllowedInputMime } from '../../lib/images-shared'
 import MarkdownView from './MarkdownView'
 
 type Mode = 'create' | 'edit'
@@ -41,6 +44,13 @@ function snapshotsEqual(a: FormState, b: FormState) {
   )
 }
 
+// 8-char alphanumeric suffix for upload placeholders — prevents collision
+// with user-typed text like `![uploading…](upload:1)`.
+const placeholderId = customAlphabet(
+  '0123456789abcdefghijklmnopqrstuvwxyz',
+  8,
+)
+
 export default function PostEditor(props: Props) {
   const router = useRouter()
   const mode: Mode = props.mode
@@ -53,8 +63,98 @@ export default function PostEditor(props: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [slugTakenHint, setSlugTakenHint] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const isDirty = !snapshotsEqual(form, savedRef.current)
+
+  /**
+   * Imperatively insert text at the current selection and sync React state.
+   *
+   * Uses the native `setRangeText` API so the browser places the cursor at
+   * end-of-insertion atomically with the DOM update. Then we `setForm` with
+   * `el.value` so controlled-input state matches DOM and React's next render
+   * doesn't fight the cursor we just set.
+   *
+   * React does not fire synthetic onChange for setRangeText, hence the
+   * explicit setForm sync.
+   */
+  function insertAtCursor(insertion: string) {
+    const el = textareaRef.current
+    if (!el) {
+      setForm((f) => ({ ...f, body_md: f.body_md + insertion }))
+      return
+    }
+    const start = el.selectionStart ?? el.value.length
+    const end = el.selectionEnd ?? start
+    el.setRangeText(insertion, start, end, 'end')
+    el.focus()
+    setForm((f) => ({ ...f, body_md: el.value }))
+  }
+
+  /**
+   * Replace a placeholder substring with final markdown. Uses setRangeText
+   * with 'preserve' mode so the browser shifts the user's selection past the
+   * replaced range by the correct delta — keeps cursor stable when a user
+   * has moved on to typing elsewhere while uploads resolve in the background.
+   */
+  function replaceInBody(needle: string, replacement: string) {
+    const el = textareaRef.current
+    if (el) {
+      const idx = el.value.indexOf(needle)
+      if (idx !== -1) {
+        el.setRangeText(replacement, idx, idx + needle.length, 'preserve')
+        setForm((f) => ({ ...f, body_md: el.value }))
+        return
+      }
+    }
+    // Fallback: no textarea ref or user deleted the placeholder mid-flight.
+    setForm((f) => ({
+      ...f,
+      body_md: f.body_md.split(needle).join(replacement),
+    }))
+  }
+
+  async function handleFiles(fileList: FileList | File[]) {
+    const files = Array.from(fileList).filter((f) =>
+      isAllowedInputMime(f.type),
+    )
+    if (files.length === 0) {
+      setUploadError('unsupported_media_type')
+      return
+    }
+    setUploadError(null)
+
+    // Phase 1: insert all placeholders sequentially — textarea cursor state
+    // only updates synchronously so this has to be ordered.
+    const pending = files.map((file) => {
+      const id = placeholderId()
+      const placeholder = `![uploading…](upload:${id})`
+      insertAtCursor(placeholder)
+      return { file, placeholder, id }
+    })
+
+    // Phase 2: dispatch uploads in parallel — swaps happen in resolution
+    // order, not start order (matches spec §6.3).
+    await Promise.all(
+      pending.map(async ({ file, placeholder, id }) => {
+        try {
+          const url = await uploadImage(file)
+          replaceInBody(placeholder, `![image](${url})`)
+          // Clear stale error once any upload succeeds (spec §6.2).
+          setUploadError((prev) => (prev ? null : prev))
+        } catch (err) {
+          const code =
+            err instanceof ImageClientError ? err.code : 'upload_failed'
+          console.error('[PostEditor] upload failed', err)
+          replaceInBody(
+            placeholder,
+            `![upload failed: ${code}](upload:${id})`,
+          )
+          setUploadError(code)
+        }
+      }),
+    )
+  }
 
   // beforeunload: attach only while dirty; detach on unmount or clean.
   useEffect(() => {
@@ -293,7 +393,27 @@ export default function PostEditor(props: Props) {
         <textarea
           ref={textareaRef}
           value={form.body_md}
-          onChange={(e) => setForm((f) => ({ ...f, body_md: e.target.value }))}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, body_md: e.target.value }))
+            // Clear any upload error once user starts editing (spec §6.2).
+            setUploadError((prev) => (prev ? null : prev))
+          }}
+          onPaste={(e) => {
+            const items = e.clipboardData?.items
+            if (!items) return
+            const files: File[] = []
+            for (let i = 0; i < items.length; i++) {
+              const item = items[i]
+              if (item.kind === 'file') {
+                const file = item.getAsFile()
+                if (file) files.push(file)
+              }
+            }
+            if (files.length > 0) {
+              e.preventDefault()
+              void handleFiles(files)
+            }
+          }}
           placeholder='# Your markdown…'
           className='min-h-[50vh] resize-none border-bb-gray/30 bg-black p-4 font-mono text-bb-white outline-none md:h-[100dvh] md:border-r'
         />
@@ -329,7 +449,16 @@ export default function PostEditor(props: Props) {
             </button>
           ) : null}
         </div>
-        {error ? <span className='text-sm text-bb-red'>SAVE FAILED — {error}</span> : null}
+        <div className='flex flex-col items-end gap-1'>
+          {error ? (
+            <span className='text-sm text-bb-red'>SAVE FAILED — {error}</span>
+          ) : null}
+          {uploadError ? (
+            <span className='text-xs text-bb-red'>
+              UPLOAD FAILED — {uploadError}
+            </span>
+          ) : null}
+        </div>
       </footer>
     </main>
   )
