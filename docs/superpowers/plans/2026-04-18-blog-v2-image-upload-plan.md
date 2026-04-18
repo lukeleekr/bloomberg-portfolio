@@ -660,7 +660,23 @@ Insert the following inside the `PostEditor` function, after the `slugTakenHint`
     setForm((f) => ({ ...f, body_md: el.value }))
   }
 
+  /**
+   * Replace a placeholder substring with final markdown. Uses setRangeText
+   * with 'preserve' mode so the browser shifts the user's selection past the
+   * replaced range by the correct delta — keeps cursor stable when a user
+   * has moved on to typing elsewhere while uploads resolve in the background.
+   */
   function replaceInBody(needle: string, replacement: string) {
+    const el = textareaRef.current
+    if (el) {
+      const idx = el.value.indexOf(needle)
+      if (idx !== -1) {
+        el.setRangeText(replacement, idx, idx + needle.length, 'preserve')
+        setForm((f) => ({ ...f, body_md: el.value }))
+        return
+      }
+    }
+    // Fallback: no textarea ref or user deleted the placeholder mid-flight.
     setForm((f) => ({
       ...f,
       body_md: f.body_md.split(needle).join(replacement),
@@ -677,22 +693,36 @@ Insert the following inside the `PostEditor` function, after the `slugTakenHint`
     }
     setUploadError(null)
 
-    for (const file of files) {
+    // Phase 1: insert all placeholders sequentially — textarea cursor state
+    // only updates synchronously so this has to be ordered.
+    const pending = files.map((file) => {
       const id = placeholderId()
       const placeholder = `![uploading…](upload:${id})`
       insertAtCursor(placeholder)
+      return { file, placeholder, id }
+    })
 
-      try {
-        const url = await uploadImage(file)
-        replaceInBody(placeholder, `![image](${url})`)
-      } catch (err) {
-        const code =
-          err instanceof ImageClientError ? err.code : 'upload_failed'
-        console.error('[PostEditor] upload failed', err)
-        replaceInBody(placeholder, `![upload failed: ${code}](upload:${id})`)
-        setUploadError(code)
-      }
-    }
+    // Phase 2: dispatch uploads in parallel — swaps happen in resolution
+    // order, not start order (matches spec §6.3).
+    await Promise.all(
+      pending.map(async ({ file, placeholder, id }) => {
+        try {
+          const url = await uploadImage(file)
+          replaceInBody(placeholder, `![image](${url})`)
+          // Clear stale error once any upload succeeds (spec §6.2).
+          setUploadError((prev) => (prev ? null : prev))
+        } catch (err) {
+          const code =
+            err instanceof ImageClientError ? err.code : 'upload_failed'
+          console.error('[PostEditor] upload failed', err)
+          replaceInBody(
+            placeholder,
+            `![upload failed: ${code}](upload:${id})`,
+          )
+          setUploadError(code)
+        }
+      }),
+    )
   }
 ```
 
@@ -704,7 +734,11 @@ Find the existing `<textarea>` element in the editor body (around line 293 — t
         <textarea
           ref={textareaRef}
           value={form.body_md}
-          onChange={(e) => setForm((f) => ({ ...f, body_md: e.target.value }))}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, body_md: e.target.value }))
+            // Clear any upload error once user starts editing (spec §6.2).
+            setUploadError((prev) => (prev ? null : prev))
+          }}
           onPaste={(e) => {
             const items = e.clipboardData?.items
             if (!items) return
@@ -798,7 +832,11 @@ Find the `<textarea>` element modified in Task 7. Add `onDragOver` and `onDrop` 
         <textarea
           ref={textareaRef}
           value={form.body_md}
-          onChange={(e) => setForm((f) => ({ ...f, body_md: e.target.value }))}
+          onChange={(e) => {
+            setForm((f) => ({ ...f, body_md: e.target.value }))
+            // Clear any upload error once user starts editing (spec §6.2).
+            setUploadError((prev) => (prev ? null : prev))
+          }}
           onPaste={(e) => {
             const items = e.clipboardData?.items
             if (!items) return
@@ -919,15 +957,21 @@ Expected: two placeholders `upload:N` and `upload:N+1` appear in order, each rep
 
 - [ ] **Step 7: Manual smoke — error path**
 
+**Part A: SVG rejection (client-side filter).**
+
 Drag an SVG file onto the textarea.
 
 Expected: the textarea gets no placeholder (filter rejects it before work starts), `UPLOAD FAILED — unsupported_media_type` appears in the footer.
 
-Next, quit `npm run dev`, edit `.env.local` to remove `SUPABASE_URL` (or set to an invalid value), restart dev, retry an upload.
+**Part B: Storage error (server-side).**
 
-Expected: placeholder appears, then gets replaced by `![upload failed: storage_error](upload:N)`, `UPLOAD FAILED — storage_error` appears in footer.
+Do NOT remove `SUPABASE_URL` — `app/lib/supabase-server.ts` throws at module load when env vars are missing outside build phase, so the dev server will fail to boot entirely and you won't exercise the handler at all.
 
-Restore the env var before proceeding.
+Instead, point the route at a non-existent bucket. Temporarily edit `app/api/images/route.ts`: change `const BUCKET = 'post-images'` to `const BUCKET = 'does-not-exist-sentinel'`. Restart dev, retry an upload.
+
+Expected: module loads, handler runs, Supabase Storage returns "Bucket not found", handler returns 500 `storage_error`. Placeholder replaced by `![upload failed: storage_error](upload:<id>)`, footer shows `UPLOAD FAILED — storage_error`.
+
+**Revert the `BUCKET` edit before proceeding.**
 
 - [ ] **Step 8: Commit**
 
@@ -990,26 +1034,39 @@ git diff --name-only origin/main..HEAD | grep "supabase-server.ts"
 # Expected: no output.
 ```
 
-- [ ] **Step 5: Confirm no placeholder markdown leaks into saved posts**
+- [ ] **Step 5: Verify the save-race placeholder leak is the documented accepted behaviour**
 
-This is the dangerous regression. In the dev editor:
+Spec §6.3 explicitly accepts that saving mid-upload leaves the `![uploading…]` placeholder in `body_md`. This step confirms that accepted behaviour manifests in practice. This is NOT a check that the leak is prevented — the opposite.
+
 1. Paste an image.
 2. **Immediately** press Cmd+S before the upload resolves (race the placeholder).
 3. Expected behaviour: the placeholder is saved as `![uploading…](upload:<id>)` into `body_md`. The detail page will render it as broken markdown (literally shows "uploading…" as alt text, broken image icon).
 
-This IS the accepted behaviour per spec §6.3 — the save path does not wait for pending uploads. Document this in the commit message if you hit it. If you feel strongly that this should block the save, that is a spec change, not an implementation bug — flag it in the PR description and let Luke decide.
+If you see the broken-image outcome, the accepted behaviour is reproducible — move on. If you strongly feel this should block the save, that's a spec change, not an implementation bug — flag it in the PR description and let Luke decide.
 
 - [ ] **Step 6: 413 payload_too_large smoke**
 
-Manufacture a post-resize oversized input to exercise the server's 413 branch. The client-side resize usually keeps output under 2MB, so we need to bypass it — temporarily raise `IMAGE_MAX_WIDTH_PX` in `images-shared.ts` to `4096` and the output quality to `0.99`, then paste a large Retina screenshot.
+Hit the server directly with a >2MB JPEG to exercise the size-guard branch — no need to mutate client constants.
 
-1. Edit `app/lib/images-shared.ts`: `IMAGE_MAX_WIDTH_PX = 4096`, `IMAGE_OUTPUT_QUALITY = 0.99`.
-2. Restart `npm run dev`.
-3. Paste a large screenshot (e.g., full Retina display capture).
-4. Expected: placeholder appears, then swaps to `![upload failed: payload_too_large](upload:<id>)`. Footer shows `UPLOAD FAILED — payload_too_large`.
-5. **Revert the edits to `images-shared.ts` before continuing.**
+1. Prepare an oversized JPEG. Any image >2MB works. Easiest recipe:
+   ```bash
+   # Create a 4000x4000 random-pixel JPEG at high quality → ~3MB
+   sips -c 4000 4000 --setProperty format jpeg --setProperty formatOptions 100 \
+     ~/Desktop/oversized.jpg 2>/dev/null || true
+   # Or use any existing raw photo / high-res screenshot from your library.
+   ls -lh ~/Desktop/oversized.jpg
+   ```
+2. With `npm run dev` running and the admin cookie copied from browser devtools:
+   ```bash
+   curl -s -o /dev/stderr -w "%{http_code}\n" \
+     -X POST http://localhost:3000/api/images \
+     -H "Cookie: bb_admin=<paste-value>" \
+     -H "Origin: http://localhost:3000" \
+     -F "file=@${HOME}/Desktop/oversized.jpg"
+   ```
+3. Expected: `{"error":"payload_too_large"}` then `413`.
 
-If 413 doesn't trigger, tweak the inputs until the post-resize blob is >2MB. The point is to verify the server's size-guard responds correctly, not to ship the tweaked constants.
+This confirms the server's size-guard fires before the Storage call.
 
 - [ ] **Step 7: Dirty-state integration**
 
@@ -1081,3 +1138,39 @@ No code change. The verification above is the task's deliverable. If you found i
 - Alt-text prompt UI. Current default `![image]` is user-editable in markdown.
 - Cover/hero image per post (Epic-level deferred).
 - Tag / theme classification (V2 Epic 2 — separate spec + plan).
+
+---
+
+## CLAUDE PLAN-ENG-REVIEW PASS 2026-04-18
+
+Opus (Claude) did a full plan-eng-review over this plan before Codex saw it. All findings were applied inline (see commit `84cb9f2`). Summary:
+
+| Section | Findings | Resolution |
+|---|---|---|
+| Architecture | 3 | HEIC removed from spec; origin check simplified to `new URL(request.url).origin`; draft/private public-bucket limitation documented in spec §8 |
+| Code quality | 5 | `api-response.ts` extraction (new Task 4); redundant client MIME check removed; placeholder IDs use `nanoid`; `http_${status}` error fallback; `insertAtCursor` uses `setRangeText` for correct cursor |
+| Test coverage | 3 gaps | Added smoke steps for 413, dirty-state, cursor position, Vercel `request.url` origin verification |
+| Performance | 0 | No findings |
+
+Verdict: **APPROVED with edits** (all applied). Outside voice (Codex) runs next.
+
+---
+
+## CODEX REVIEW PASS 2026-04-19
+
+Codex reviewed the Opus-corrected plan under `/swarm:rocky` Phase 2.5 with `model_reasoning_effort="high"`. Result: **0 Critical, 4 Important, 2 Nits**. All findings applied inline (this commit).
+
+| # | Severity | Finding | Fix applied |
+|---|---|---|---|
+| 1 | Important | `handleFiles` serialized multi-file uploads via `await` in `for` — contradicts spec §6.3 "in flight simultaneously" | Split into two phases: insert placeholders sequentially, dispatch uploads via `Promise.all` |
+| 2 | Important | `uploadError` never cleared on success or manual edit — violates spec §6.2 "one-shot error state" | Added functional `setUploadError((prev) => (prev ? null : prev))` on success and in textarea `onChange` |
+| 3 | Important | Storage-error smoke test didn't work — removing `SUPABASE_URL` prevents module load | Changed smoke to point at a non-existent bucket (`does-not-exist-sentinel`), then revert |
+| 4 | Important | `replaceInBody` plain state rewrite dropped caret when user typed during upload | Refactored to use `setRangeText(..., 'preserve')` so browser shifts caret by delta |
+| 5 | Nit | 413 smoke test mutated constants — risky revert path | Replaced with direct `curl -F` of a >2MB JPEG (no constant mutation) |
+| 6 | Nit | Task 9 Step 5 heading contradicted its body | Renamed to "Verify the save-race placeholder leak is the documented accepted behaviour" |
+
+Cross-model tension: none. Codex and Opus agreed on the direction of all findings; Codex surfaced things Opus missed (the serial-loop, the error-lifecycle, the broken smoke test). Zero Critical: the plan has no blocker for implementation.
+
+Confidence (Codex): MEDIUM.
+
+**Plan status after both review passes: READY FOR IMPLEMENTATION.**
