@@ -9,6 +9,7 @@
 //      tradeoff. If this app grows into a higher-stakes surface, replace
 //      this with a server-side session table and per-login nonces.
 import type { NextRequest } from 'next/server'
+import { cookies } from 'next/headers'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
 export const ADMIN_COOKIE_NAME = 'bb_admin'
@@ -130,4 +131,13 @@ export function isAdminRequest(request: Request | NextRequest): boolean {
   }
 
   return verifyAdminCookie(getCookieFromHeader(request))
+}
+
+// Server Components (app/**/page.tsx without 'use client') have no request
+// object; Next.js 16 exposes cookies via the async `cookies()` helper. This
+// additive helper keeps the existing `isAdminRequest` path unchanged for
+// Route Handlers.
+export async function isAdminFromCookies(): Promise<boolean> {
+  const store = await cookies()
+  return verifyAdminCookie(store.get(ADMIN_COOKIE_NAME)?.value)
 }
