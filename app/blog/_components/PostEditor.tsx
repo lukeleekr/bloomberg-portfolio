@@ -60,6 +60,7 @@ export default function PostEditor(props: Props) {
   const savedRef = useRef<FormState>(toForm(initial))
   const slugTouchedRef = useRef<boolean>(mode === 'edit')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [slugTakenHint, setSlugTakenHint] = useState(false)
@@ -318,7 +319,30 @@ export default function PostEditor(props: Props) {
           {mode === 'create' ? 'NEW POST' : 'EDIT POST'}
           {isDirty ? <span className='ml-3 text-bb-amber'>● UNSAVED</span> : null}
         </span>
-        <span className='text-xs text-bb-gray'>Cmd/Ctrl+S to save</span>
+        <div className='flex items-center gap-3'>
+          <input
+            ref={fileInputRef}
+            type='file'
+            accept='image/jpeg,image/png,image/gif,image/webp'
+            multiple
+            className='hidden'
+            onChange={(e) => {
+              const files = e.target.files
+              if (files && files.length > 0) {
+                void handleFiles(files)
+              }
+              e.target.value = ''
+            }}
+          />
+          <button
+            type='button'
+            onClick={() => fileInputRef.current?.click()}
+            className='border border-bb-gray/40 px-3 py-1 text-xs text-bb-gray hover:border-bb-orange hover:text-bb-orange'
+          >
+            INSERT IMAGE
+          </button>
+          <span className='text-xs text-bb-gray'>Cmd/Ctrl+S to save</span>
+        </div>
       </header>
 
       <section className='grid gap-3 border-b border-bb-gray/30 px-6 py-4 md:grid-cols-[1fr_auto_auto] md:items-center'>
@@ -410,6 +434,18 @@ export default function PostEditor(props: Props) {
               }
             }
             if (files.length > 0) {
+              e.preventDefault()
+              void handleFiles(files)
+            }
+          }}
+          onDragOver={(e) => {
+            if (e.dataTransfer?.types?.includes('Files')) {
+              e.preventDefault()
+            }
+          }}
+          onDrop={(e) => {
+            const files = e.dataTransfer?.files
+            if (files && files.length > 0) {
               e.preventDefault()
               void handleFiles(files)
             }
