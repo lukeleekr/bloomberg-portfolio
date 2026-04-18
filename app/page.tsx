@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 import SkillsRadar from './components/RadarChart';
 import TerminalOverlay from './components/TerminalOverlay';
 import FKeyPanel from './components/FKeyPanel';
@@ -52,6 +53,7 @@ export default function BloombergPortfolio() {
   const [isAdmin, setIsAdmin] = useState(false), [adminModalOpen, setAdminModalOpen] = useState(false), [adminPassword, setAdminPassword] = useState(''), [adminError, setAdminError] = useState<string | null>(null), [adminLoading, setAdminLoading] = useState(false);
   const [visits, setVisits] = useState<{ today: number; total: number } | null>(null);
   const [showAlert, setShowAlert] = useState(false);
+  const [adminExpiredBanner, setAdminExpiredBanner] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [activeBtn, setActiveBtn] = useState('96');
   const [openProject, setOpenProject] = useState<string | null>(null);
@@ -183,6 +185,18 @@ export default function BloombergPortfolio() {
       }, 5000);
       const hideTimer = setTimeout(() => setShowAlert(false), 10000);
       return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('admin_expired') === '1') {
+      setAdminExpiredBanner(true);
+      url.searchParams.delete('admin_expired');
+      window.history.replaceState({}, '', url.toString());
+      const t = setTimeout(() => setAdminExpiredBanner(false), 6000);
+      return () => clearTimeout(t);
     }
   }, []);
 
@@ -368,7 +382,15 @@ export default function BloombergPortfolio() {
             <div className="text-bb-amber font-bold">PORTFOLIO</div>
             <div className="text-bb-white border-l border-bb-border pl-2">이용훈 / Luke Lee</div>
           </div>
-          <div className="text-bb-white font-bold text-right md:hidden flicker-target">{timeKST}</div>
+          <div className="flex items-center gap-3">
+            <div className="text-bb-white font-bold text-right text-xs flicker-target">{timeKST}</div>
+            <Link
+              href="/blog"
+              className="text-bb-orange border border-bb-orange px-3 py-1 text-xs hover:bg-bb-orange hover:text-black"
+            >
+              BLOG
+            </Link>
+          </div>
         </div>
         <div className="hidden md:flex items-center gap-4 text-xs relative">
           <div className="flex items-center gap-1">
@@ -377,7 +399,6 @@ export default function BloombergPortfolio() {
             <button type="button" onClick={() => { setActiveBtn('98'); window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' })); setShowActions(false); }} className={`px-2 cursor-pointer font-bold border ${activeBtn === '98' ? 'bg-bb-orange text-bb-black border-bb-orange' : 'border-bb-border text-bb-gray hover:border-bb-orange hover:text-bb-orange'}`}>98) Terminal</button>
           </div>
           {visits && <div className="hidden sm:flex items-center gap-2 text-xs"><span className="text-bb-gray">VISITS</span><span className="text-bb-orange font-bold">TODAY {visits.today.toLocaleString()}</span><span className="text-bb-gray">|</span><span className="text-bb-amber font-bold">TOTAL {visits.total.toLocaleString()}</span></div>}
-          <div className="text-bb-white font-bold w-20 text-right flicker-target">{timeKST}</div>
           {/* 96) Actions Dropdown */}
           <AnimatePresence>
             {showActions && (
@@ -408,6 +429,12 @@ export default function BloombergPortfolio() {
           </AnimatePresence>
         </div>
       </header>
+
+      {adminExpiredBanner ? (
+        <div className="border-b border-bb-amber bg-bb-amber/20 px-4 py-2 text-sm text-bb-amber">
+          ADMIN SESSION EXPIRED — re-enter your password to continue editing.
+        </div>
+      ) : null}
 
       <nav className="flex overflow-x-auto border-b border-bb-border bg-bb-black sticky top-[33px] md:top-8 z-30 scrollbar-hide">
         {tabs.map((tab, i) => (
