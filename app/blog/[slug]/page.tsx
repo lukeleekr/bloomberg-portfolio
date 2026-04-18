@@ -92,8 +92,11 @@ export default async function BlogDetailPage({ params }: PageProps) {
           <div>
             <div className='text-xs uppercase text-bb-gray'>Status</div>
             <div>
-              <span className='text-bb-white'>{post.status.toUpperCase()}</span>
-              <StatusChip status={post.status} />
+              {post.status === 'public' ? (
+                <span className='text-bb-white'>PUBLIC</span>
+              ) : (
+                <StatusChip status={post.status} />
+              )}
             </div>
           </div>
           <div>
