@@ -22,6 +22,13 @@ function buildObjectPath(): string {
 }
 
 export async function POST(request: Request) {
+  // TEMP: verify request.url-based origin check in Vercel. Remove after one hit.
+  console.log('[origin-verify]', {
+    request_url_origin: new URL(request.url).origin,
+    origin_header: request.headers.get('origin'),
+    host_header: request.headers.get('host'),
+  })
+
   if (!isAdminRequest(request)) {
     return jsonError('unauthorized', 401)
   }
