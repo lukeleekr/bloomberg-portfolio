@@ -8,19 +8,7 @@ import {
   TITLE_MIN_LEN,
 } from '../../../lib/posts-shared'
 import { deletePost, getPostBySlug, updatePost } from '../../../lib/posts-server'
-
-const NO_STORE_JSON_HEADERS = {
-  'Content-Type': 'application/json',
-  'Cache-Control': 'no-store',
-}
-
-function jsonError(code: string, status: number, detail?: string) {
-  const body = detail ? { error: code, detail } : { error: code }
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: NO_STORE_JSON_HEADERS,
-  })
-}
+import { NO_STORE_JSON_HEADERS, jsonError } from '../../../lib/api-response'
 
 // Next.js 16: params is a Promise.
 type RouteContext = { params: Promise<{ slug: string }> }

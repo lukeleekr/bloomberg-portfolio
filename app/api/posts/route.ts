@@ -8,19 +8,7 @@ import {
   TITLE_MIN_LEN,
 } from '../../lib/posts-shared'
 import { createPost } from '../../lib/posts-server'
-
-const NO_STORE_JSON_HEADERS = {
-  'Content-Type': 'application/json',
-  'Cache-Control': 'no-store',
-}
-
-function jsonError(code: string, status: number, detail?: string) {
-  const body = detail ? { error: code, detail } : { error: code }
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: NO_STORE_JSON_HEADERS,
-  })
-}
+import { NO_STORE_JSON_HEADERS, jsonError } from '../../lib/api-response'
 
 export async function POST(request: Request) {
   if (!isAdminRequest(request)) {
