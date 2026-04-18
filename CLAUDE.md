@@ -64,3 +64,4 @@ No test suite exists — do not invent `npm test`.
 - `supabase/migrations/` — `0001_init.sql` (comments + visits_daily + visits_total + `increment_visit` RPC), `0002_posts.sql` (posts table; slug regex + status enum), `0003_post_images_bucket.sql` (public Storage bucket)
 - `docs/superpowers/specs/2026-04-18-blog-v2-image-upload-design.md` — V2 image-upload design (threat model, error lifecycle, parallel upload contract)
 - `docs/superpowers/plans/2026-04-18-blog-v2-image-upload-plan.md` — V2 implementation plan with literal code per task
+- `docs/blog-roadmap.md` — shipped epics + scoped-but-unstarted work (tags, folders, comments, search, RSS, autosave, syntax highlighting). Check before starting blog work.
