@@ -44,7 +44,7 @@ Out of scope (may be revisited later):
 [Editor trigger: paste | drag-drop | INSERT IMAGE button]
    ↓
 [Client: images-client.ts]
-   - decode file via <img> element (browser handles PNG/JPEG/GIF/WebP/HEIC)
+   - decode file via <img> element (browser decodes PNG/JPEG/GIF/WebP; HEIC rejected by allowlist)
    - draw to offscreen canvas scaled to max 1920px wide
    - canvas.toBlob("image/jpeg", 0.85)
    - POST multipart/form-data to /api/images
@@ -186,7 +186,6 @@ return url
 | 403 | `{ error: 'bad_origin' }` | Origin header missing or cross-origin |
 | 413 | `{ error: 'payload_too_large' }` | File > `IMAGE_MAX_UPLOAD_BYTES` |
 | 415 | `{ error: 'unsupported_media_type' }` | MIME not in allowlist |
-| 500 | `{ error: 'origin_misconfigured' }` | Production deploy has no `NEXT_PUBLIC_SITE_URL` (see §5.1) |
 | 500 | `{ error: 'storage_error' }` | Supabase Storage upload failed |
 
 **Handler shape:**
@@ -240,11 +239,7 @@ Replacement strategy, both required:
 1. **Admin cookie gate** (`isAdminRequest`) — unauthenticated requests are rejected before any work happens.
 2. **Same-origin Origin header check** — compare `request.headers.get('origin')` to the configured site origin. Reject if missing or mismatched.
 
-The site origin resolves as follows:
-
-1. If `process.env.NEXT_PUBLIC_SITE_URL` is set, use it verbatim (production path — set this in Vercel env).
-2. Else if `process.env.NODE_ENV !== 'production'`, derive from the request's `Host` header as a dev-only fallback (e.g. `http://localhost:3000`).
-3. Else (production without `NEXT_PUBLIC_SITE_URL`) — reject the request with 500 `origin_misconfigured`. Trusting the Host header in production is a known CSRF footgun; fail loudly instead.
+The server-expected origin comes from `new URL(request.url).origin`. Next.js populates `request.url` with the actual public URL (protocol, host, port) that the client hit, so the same check works in dev (`http://localhost:3000`, LAN IPs, IPv6), preview deployments, and production without any env var. No `NEXT_PUBLIC_SITE_URL` required. Task 9 includes a one-time Vercel production sanity check to confirm this assumption holds (log `new URL(request.url).origin` once on prod, confirm it matches `https://lukeyhlee.com`).
 
 Missing `Origin` header → 403 (browsers always set it for cross-site POSTs; native clients can fake it but would still need the admin cookie).
 
@@ -284,7 +279,7 @@ No automated test suite in this repo. Manual smoke, same pattern as V1:
 2. **Drag-drop:** drag a PNG from Finder onto the textarea → same outcome.
 3. **Button:** click INSERT IMAGE → file picker opens → pick a PNG → same outcome.
 4. **Multiple uploads:** paste 3 screenshots in quick succession → all three insert in order of completion, no collisions.
-5. **HEIC:** drop a HEIC file from iPhone → canvas converts to JPEG, uploads, renders.
+5. **HEIC rejected:** drop a HEIC file from iPhone → client allowlist rejects with `unsupported_media_type`. (HEIC canvas-decode is Safari-only; cross-browser support is unreliable. User converts to PNG/JPEG via Preview or re-captures via Mac screenshot.)
 6. **SVG rejection:** drop an SVG → client-side filter rejects with inline error, no network request made.
 7. **Large file:** drop a 15MB RAW → rejected client-side (raw > `IMAGE_MAX_INPUT_BYTES`).
 8. **Save roundtrip:** save post after upload → reload detail page → image still renders from Storage URL.
@@ -298,7 +293,8 @@ No automated test suite in this repo. Manual smoke, same pattern as V1:
 - **No progress bar.** Placeholder text is the feedback signal. Single upload typically completes in <1s; a spinner seems like overkill. Revisit if uploads get slow.
 - **No drag-drop highlight.** Dropping on the textarea works but there's no visual "drop here" ring. Keeps the UI clean; can be added if users miss the cue.
 - **No request/response logging.** Errors `console.error` client-side; server `console.error('[api/images] storage_error', err)` only. Vercel logs are the inspection surface.
-- **`NEXT_PUBLIC_SITE_URL` required in production.** The origin check refuses to run in production without it (returns 500 `origin_misconfigured`). Set this in Vercel env vars to `https://lukeyhlee.com` before shipping V2. Dev (`NODE_ENV !== 'production'`) falls back to the Host header so localhost works out of the box.
+- **Draft/private post images are URL-reachable.** The `post-images` bucket is public-read. An image embedded in a `draft` or `private` post is reachable via its Storage URL even though the post page itself 404s for non-admins. The `nanoid(12)` path gives ~71 bits of entropy so URLs are unguessable, but do not treat Storage URLs as secrets — if Luke pastes one somewhere and later deletes the post, the image remains accessible. Acceptable at this threat model (single-author personal blog, no regulated data). Upgrade path if needed: private bucket + `getSignedUrl()` on read.
+- **Origin check via `request.url`.** The same-origin check compares `new URL(request.url).origin` to the `Origin` request header. No `NEXT_PUBLIC_SITE_URL` env var needed in production because Vercel preserves the public URL in `request.url`. Dev (`localhost`, LAN IPs, IPv6) works uniformly. Task 9 includes a one-time production verification step to confirm `request.url` matches the public origin on Vercel.
 
 ## 9. Key decisions (retained from brainstorm)
 

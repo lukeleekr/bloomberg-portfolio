@@ -39,6 +39,9 @@
 | Create | `app/lib/images-shared.ts` | MIME allowlist, size/dimension constants, validators — client-safe |
 | Create | `app/lib/images-client.ts` | Canvas resize + multipart upload helpers — client-only |
 | Create | `app/lib/origin.ts` | `isSameOrigin(request)` helper — server-only, shared |
+| Create | `app/lib/api-response.ts` | Shared `NO_STORE_JSON_HEADERS` + `jsonError` / `jsonOk` (DRY extraction from V1 routes) |
+| Modify | `app/api/posts/route.ts` | Replace local `NO_STORE_JSON_HEADERS` + `jsonError` with imports from `api-response.ts` |
+| Modify | `app/api/posts/[slug]/route.ts` | Same refactor as above |
 | Create | `app/api/images/route.ts` | `POST` handler for single-image upload |
 | Modify | `app/blog/_components/PostEditor.tsx` | Add paste / drop / button triggers, cursor insertion, error state |
 
@@ -157,7 +160,7 @@ git commit -m "feat(blog): add images-shared constants + validators"
 **Files:**
 - Create: `app/lib/origin.ts`
 
-This is the CSRF replacement for multipart uploads that can't use the `Content-Type: application/json` trick.
+This is the CSRF replacement for multipart uploads that can't use the `Content-Type: application/json` trick. The expected origin is read from `request.url` (Next.js preserves the public URL the client hit). No env var required.
 
 - [ ] **Step 1: Write the file**
 
@@ -167,50 +170,22 @@ Create `app/lib/origin.ts` with this exact content:
 // Server-only same-origin check for routes that accept multipart/form-data
 // (which is CORS-simple and cannot use the application/json CSRF trick).
 //
-// Resolution order for the expected site origin:
-//   1. process.env.NEXT_PUBLIC_SITE_URL (production path)
-//   2. NODE_ENV !== 'production' fallback: derive from request Host header
-//   3. production without NEXT_PUBLIC_SITE_URL: reject with misconfigured
-//
-// Trusting the Host header in production is a known CSRF footgun. We fail
-// loudly instead of silently.
+// Uses `new URL(request.url).origin` as the expected origin. Next.js route
+// handlers receive the full public URL (protocol + host + port) in
+// request.url, so this works in dev (localhost, LAN IPs, IPv6), preview
+// deployments, and production (Vercel) uniformly. No NEXT_PUBLIC_SITE_URL
+// env var needed. Task 9 verifies this assumption on the first prod deploy.
 
-export type OriginCheckResult =
-  | { ok: true }
-  | { ok: false; reason: 'misconfigured' | 'bad_origin' }
+export function isSameOrigin(request: Request): boolean {
+  const originHeader = request.headers.get('origin')
+  if (!originHeader) return false
 
-function normalize(raw: string): string {
-  return raw.replace(/\/$/, '').toLowerCase()
-}
-
-function expectedOrigin(request: Request): string | null {
-  const envUrl = process.env.NEXT_PUBLIC_SITE_URL
-  if (envUrl) return normalize(envUrl)
-
-  if (process.env.NODE_ENV !== 'production') {
-    const host = request.headers.get('host')
-    if (!host) return null
-    // Dev-only: assume http for localhost, https otherwise. Good enough for
-    // `npm run dev` and preview deployments that set Host.
-    const proto = host.startsWith('localhost') || host.startsWith('127.')
-      ? 'http'
-      : 'https'
-    return normalize(`${proto}://${host}`)
+  try {
+    const expected = new URL(request.url).origin
+    return originHeader === expected
+  } catch {
+    return false
   }
-
-  return null
-}
-
-export function isSameOrigin(request: Request): OriginCheckResult {
-  const expected = expectedOrigin(request)
-  if (!expected) return { ok: false, reason: 'misconfigured' }
-
-  const origin = request.headers.get('origin')
-  if (!origin) return { ok: false, reason: 'bad_origin' }
-
-  return normalize(origin) === expected
-    ? { ok: true }
-    : { ok: false, reason: 'bad_origin' }
 }
 ```
 
@@ -232,7 +207,101 @@ git commit -m "feat: add isSameOrigin helper for multipart CSRF mitigation"
 
 ---
 
-## Task 4: `POST /api/images` route handler
+## Task 4: Extract `api-response.ts` helper (DRY pass)
+
+**Files:**
+- Create: `app/lib/api-response.ts`
+- Modify: `app/api/posts/route.ts`
+- Modify: `app/api/posts/[slug]/route.ts`
+
+V1 duplicates `NO_STORE_JSON_HEADERS` and `jsonError()` across `app/api/posts/route.ts` and `app/api/posts/[slug]/route.ts`. V2 adds a third copy when we write `app/api/images/route.ts`. Extract before adding the third copy so all three routes import from one place.
+
+- [ ] **Step 1: Create `app/lib/api-response.ts`**
+
+Create the file with this exact content:
+
+```ts
+// Shared JSON response helpers for write-oriented route handlers.
+// All POST/PATCH/DELETE handlers should use these to keep headers + error
+// shape consistent.
+
+export const NO_STORE_JSON_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store',
+}
+
+export function jsonError(code: string, status: number, detail?: string) {
+  const body = detail ? { error: code, detail } : { error: code }
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: NO_STORE_JSON_HEADERS,
+  })
+}
+
+export function jsonOk(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: NO_STORE_JSON_HEADERS,
+  })
+}
+```
+
+- [ ] **Step 2: Refactor `app/api/posts/route.ts` to use the helper**
+
+Open `app/api/posts/route.ts`. Replace the local constant + function:
+
+```ts
+const NO_STORE_JSON_HEADERS = {
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store',
+}
+
+function jsonError(code: string, status: number, detail?: string) {
+  const body = detail ? { error: code, detail } : { error: code }
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: NO_STORE_JSON_HEADERS,
+  })
+}
+```
+
+with an import near the top of the file:
+
+```ts
+import { NO_STORE_JSON_HEADERS, jsonError } from '../../lib/api-response'
+```
+
+The final `new Response(JSON.stringify({ post }), { status: 201, headers: NO_STORE_JSON_HEADERS })` keeps using `NO_STORE_JSON_HEADERS` (now imported). No other changes.
+
+- [ ] **Step 3: Refactor `app/api/posts/[slug]/route.ts` to use the helper**
+
+Same pattern. Delete the local copies, add the import:
+
+```ts
+import { NO_STORE_JSON_HEADERS, jsonError } from '../../../lib/api-response'
+```
+
+(Note the extra `../` — `[slug]/route.ts` is one level deeper than `route.ts`.)
+
+- [ ] **Step 4: Verify**
+
+```bash
+npm run build
+npm run lint
+```
+
+Expected: PASS on both. No new lint warnings. Route table unchanged. Both V1 routes should still work in browser smoke (create a test post, confirm it saves) — test quickly before committing.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add app/lib/api-response.ts app/api/posts/route.ts 'app/api/posts/[slug]/route.ts'
+git commit -m "refactor: extract api-response helpers to shared module"
+```
+
+---
+
+## Task 5: `POST /api/images` route handler
 
 **Files:**
 - Create: `app/api/images/route.ts`
@@ -250,25 +319,13 @@ import {
   isAllowedInputMime,
 } from '../../lib/images-shared'
 import { supabaseServer } from '../../lib/supabase-server'
-
-const NO_STORE_JSON_HEADERS = {
-  'Content-Type': 'application/json',
-  'Cache-Control': 'no-store',
-}
+import { NO_STORE_JSON_HEADERS, jsonError } from '../../lib/api-response'
 
 const BUCKET = 'post-images'
 const nano = customAlphabet(
   '0123456789abcdefghijklmnopqrstuvwxyz',
   12,
 )
-
-function jsonError(code: string, status: number, detail?: string) {
-  const body = detail ? { error: code, detail } : { error: code }
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: NO_STORE_JSON_HEADERS,
-  })
-}
 
 function buildObjectPath(): string {
   const now = new Date()
@@ -281,16 +338,7 @@ export async function POST(request: Request) {
   if (!isAdminRequest(request)) {
     return jsonError('unauthorized', 401)
   }
-
-  const origin = isSameOrigin(request)
-  if (!origin.ok) {
-    if (origin.reason === 'misconfigured') {
-      return jsonError(
-        'origin_misconfigured',
-        500,
-        'NEXT_PUBLIC_SITE_URL is required in production',
-      )
-    }
+  if (!isSameOrigin(request)) {
     return jsonError('bad_origin', 403)
   }
 
@@ -395,7 +443,7 @@ git commit -m "feat(blog): add POST /api/images upload handler"
 
 ---
 
-## Task 5: `images-client.ts` — resize + upload helpers
+## Task 6: `images-client.ts` — resize + upload helpers
 
 **Files:**
 - Create: `app/lib/images-client.ts`
@@ -412,7 +460,6 @@ import {
   IMAGE_OUTPUT_MIME,
   IMAGE_OUTPUT_QUALITY,
   IMAGE_MAX_INPUT_BYTES,
-  isAllowedInputMime,
 } from './images-shared'
 
 export class ImageClientError extends Error {
@@ -489,13 +536,8 @@ export async function resizeImage(file: File): Promise<Blob> {
   if (file.size > IMAGE_MAX_INPUT_BYTES) {
     throw new ImageClientError('file_too_large')
   }
-  // Allow any image/* including HEIC — the canvas decode path converts it.
   if (!file.type.startsWith('image/')) {
     throw new ImageClientError('not_an_image')
-  }
-  // Reject SVG explicitly even though it's image/*.
-  if (file.type === 'image/svg+xml') {
-    throw new ImageClientError('svg_not_allowed')
   }
 
   const img = await decodeToImage(file)
@@ -503,13 +545,14 @@ export async function resizeImage(file: File): Promise<Blob> {
   return renderToBlob(img, w, h)
 }
 
-/** Resize + upload. Returns the public URL on success. */
+/**
+ * Resize + upload. Returns the public URL on success.
+ *
+ * Caller is responsible for gating on isAllowedInputMime before calling this
+ * — the current caller (PostEditor.handleFiles) filters the FileList first.
+ * If the server disagrees it returns 415 and we surface that verbatim.
+ */
 export async function uploadImage(file: File): Promise<string> {
-  // Parity with server allowlist — fail before the network roundtrip.
-  if (!isAllowedInputMime(file.type)) {
-    throw new ImageClientError('unsupported_media_type')
-  }
-
   const blob = await resizeImage(file)
 
   const fd = new FormData()
@@ -517,7 +560,10 @@ export async function uploadImage(file: File): Promise<string> {
 
   const res = await fetch('/api/images', { method: 'POST', body: fd })
   if (!res.ok) {
-    let code = 'upload_failed'
+    // Default fallback surfaces the HTTP status when the body is absent or
+    // non-JSON (e.g., edge proxy 502). Concrete codes like 'bad_origin' or
+    // 'unsupported_media_type' come from the JSON body when present.
+    let code = `http_${res.status}`
     try {
       const body = (await res.json()) as { error?: string }
       if (typeof body.error === 'string') code = body.error
@@ -553,7 +599,7 @@ git commit -m "feat(blog): add images-client resize + upload helpers"
 
 ---
 
-## Task 6: PostEditor — cursor insertion + `handleFiles` pipeline
+## Task 7: PostEditor — cursor insertion + `handleFiles` pipeline
 
 **Files:**
 - Modify: `app/blog/_components/PostEditor.tsx`
@@ -565,18 +611,42 @@ This task adds the shared upload pipeline and a single trigger (paste) so we can
 At the top of `app/blog/_components/PostEditor.tsx`, add after the existing `posts-shared` import block (around line 12):
 
 ```ts
+import { customAlphabet } from 'nanoid'
 import { uploadImage, ImageClientError } from '../../lib/images-client'
 import { isAllowedInputMime } from '../../lib/images-shared'
 ```
 
-- [ ] **Step 2: Add upload state + helpers inside the component body**
+- [ ] **Step 2: Add module-level placeholder-id generator**
+
+Above the `PostEditor` function (after the imports + helpers, at module level), add:
+
+```ts
+// 8-char alphanumeric suffix for upload placeholders — prevents collision
+// with user-typed text like `![uploading…](upload:1)`.
+const placeholderId = customAlphabet(
+  '0123456789abcdefghijklmnopqrstuvwxyz',
+  8,
+)
+```
+
+- [ ] **Step 3: Add upload state + helpers inside the component body**
 
 Insert the following inside the `PostEditor` function, after the `slugTakenHint` state declaration (around line 55, before `const isDirty = ...`):
 
 ```ts
   const [uploadError, setUploadError] = useState<string | null>(null)
-  const uploadCounterRef = useRef(0)
 
+  /**
+   * Imperatively insert text at the current selection and sync React state.
+   *
+   * Uses the native `setRangeText` API so the browser places the cursor at
+   * end-of-insertion atomically with the DOM update. Then we `setForm` with
+   * `el.value` so controlled-input state matches DOM and React's next render
+   * doesn't fight the cursor we just set.
+   *
+   * React does not fire synthetic onChange for setRangeText, hence the
+   * explicit setForm sync.
+   */
   function insertAtCursor(insertion: string) {
     const el = textareaRef.current
     if (!el) {
@@ -585,17 +655,9 @@ Insert the following inside the `PostEditor` function, after the `slugTakenHint`
     }
     const start = el.selectionStart ?? el.value.length
     const end = el.selectionEnd ?? start
-    setForm((f) => {
-      const next =
-        f.body_md.slice(0, start) + insertion + f.body_md.slice(end)
-      return { ...f, body_md: next }
-    })
-    // Restore cursor to end of insertion on next tick.
-    queueMicrotask(() => {
-      el.focus()
-      const pos = start + insertion.length
-      el.setSelectionRange(pos, pos)
-    })
+    el.setRangeText(insertion, start, end, 'end')
+    el.focus()
+    setForm((f) => ({ ...f, body_md: el.value }))
   }
 
   function replaceInBody(needle: string, replacement: string) {
@@ -616,7 +678,7 @@ Insert the following inside the `PostEditor` function, after the `slugTakenHint`
     setUploadError(null)
 
     for (const file of files) {
-      const id = ++uploadCounterRef.current
+      const id = placeholderId()
       const placeholder = `![uploading…](upload:${id})`
       insertAtCursor(placeholder)
 
@@ -634,7 +696,7 @@ Insert the following inside the `PostEditor` function, after the `slugTakenHint`
   }
 ```
 
-- [ ] **Step 3: Wire the paste handler onto the textarea**
+- [ ] **Step 4: Wire the paste handler onto the textarea**
 
 Find the existing `<textarea>` element in the editor body (around line 293 — the one with `ref={textareaRef}` inside the `<section className='grid ...'>` preview split). Add an `onPaste` handler to it:
 
@@ -664,7 +726,7 @@ Find the existing `<textarea>` element in the editor body (around line 293 — t
         />
 ```
 
-- [ ] **Step 4: Surface the upload error in the footer**
+- [ ] **Step 5: Surface the upload error in the footer**
 
 Find the footer error display near the bottom of the return (search for `error ? <span className='text-sm text-bb-red'>SAVE FAILED`). Add a second line next to it that shows upload errors. Change:
 
@@ -687,7 +749,7 @@ to:
         </div>
 ```
 
-- [ ] **Step 5: Verify build + lint**
+- [ ] **Step 6: Verify build + lint**
 
 Run:
 ```bash
@@ -697,7 +759,7 @@ npm run lint
 
 Expected: PASS on both. `npm run lint` should still show only the 3 pre-existing warnings.
 
-- [ ] **Step 6: Manual smoke — paste an image**
+- [ ] **Step 7: Manual smoke — paste an image**
 
 In a terminal:
 ```bash
@@ -707,14 +769,14 @@ npm run dev
 Open http://localhost:3000, unlock admin, navigate to `/blog/new`. Focus the textarea. Take a screenshot (macOS: Cmd+Shift+Ctrl+4, select a region → it goes to the clipboard). Paste with Cmd+V into the textarea.
 
 Expected:
-1. A `![uploading…](upload:1)` placeholder appears at the cursor immediately.
+1. A `![uploading…](upload:<8-char-id>)` placeholder appears at the cursor immediately.
 2. Within ~1 second, it is replaced with `![image](https://<project>.supabase.co/storage/v1/object/public/post-images/2026/04/<nanoid>.jpg)`.
 3. The preview pane on the right renders the image.
 4. No upload error appears.
 
 If the preview doesn't render, open devtools → Network and inspect the image URL. Copy it into a new tab — it must return the image directly (not a 401). If 401, the bucket is not public — revisit Task 1 Step 3.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add app/blog/_components/PostEditor.tsx
@@ -723,14 +785,14 @@ git commit -m "feat(blog): add paste-to-upload for inline images"
 
 ---
 
-## Task 7: PostEditor — drag-drop + toolbar button triggers
+## Task 8: PostEditor — drag-drop + toolbar button triggers
 
 **Files:**
 - Modify: `app/blog/_components/PostEditor.tsx`
 
 - [ ] **Step 1: Add drag-drop handlers to the textarea**
 
-Find the `<textarea>` element modified in Task 6. Add `onDragOver` and `onDrop` handlers alongside the existing `onPaste`:
+Find the `<textarea>` element modified in Task 7. Add `onDragOver` and `onDrop` handlers alongside the existing `onPaste`:
 
 ```tsx
         <textarea
@@ -876,7 +938,7 @@ git commit -m "feat(blog): add drag-drop + INSERT IMAGE button triggers"
 
 ---
 
-## Task 8: End-to-end verification + cleanup
+## Task 9: End-to-end verification + cleanup
 
 **Files:** (none modified)
 
@@ -933,11 +995,60 @@ git diff --name-only origin/main..HEAD | grep "supabase-server.ts"
 This is the dangerous regression. In the dev editor:
 1. Paste an image.
 2. **Immediately** press Cmd+S before the upload resolves (race the placeholder).
-3. Expected behaviour: the placeholder is saved as `![uploading…](upload:N)` into `body_md`. The detail page will render it as broken markdown (literally shows "uploading…" as alt text, broken image icon).
+3. Expected behaviour: the placeholder is saved as `![uploading…](upload:<id>)` into `body_md`. The detail page will render it as broken markdown (literally shows "uploading…" as alt text, broken image icon).
 
 This IS the accepted behaviour per spec §6.3 — the save path does not wait for pending uploads. Document this in the commit message if you hit it. If you feel strongly that this should block the save, that is a spec change, not an implementation bug — flag it in the PR description and let Luke decide.
 
-- [ ] **Step 6: Push if V1 is already deployed**
+- [ ] **Step 6: 413 payload_too_large smoke**
+
+Manufacture a post-resize oversized input to exercise the server's 413 branch. The client-side resize usually keeps output under 2MB, so we need to bypass it — temporarily raise `IMAGE_MAX_WIDTH_PX` in `images-shared.ts` to `4096` and the output quality to `0.99`, then paste a large Retina screenshot.
+
+1. Edit `app/lib/images-shared.ts`: `IMAGE_MAX_WIDTH_PX = 4096`, `IMAGE_OUTPUT_QUALITY = 0.99`.
+2. Restart `npm run dev`.
+3. Paste a large screenshot (e.g., full Retina display capture).
+4. Expected: placeholder appears, then swaps to `![upload failed: payload_too_large](upload:<id>)`. Footer shows `UPLOAD FAILED — payload_too_large`.
+5. **Revert the edits to `images-shared.ts` before continuing.**
+
+If 413 doesn't trigger, tweak the inputs until the post-resize blob is >2MB. The point is to verify the server's size-guard responds correctly, not to ship the tweaked constants.
+
+- [ ] **Step 7: Dirty-state integration**
+
+1. Open `/blog/new`, type a title + some body text, paste an image, wait for upload.
+2. Confirm the header shows `● UNSAVED` (editor is dirty because body_md changed).
+3. Press Cmd+S. Post saves, redirects to detail.
+4. Reopen via `/blog/<slug>/edit`. Confirm no `● UNSAVED` indicator (saved state matches form state).
+
+- [ ] **Step 8: Cursor position after insertion**
+
+1. Open `/blog/new`, focus the textarea.
+2. Type `hello ` (with trailing space). Cursor is at position 6.
+3. Paste an image.
+4. After upload resolves, type `world` (no paste needed, keyboard input).
+5. Expected: the textarea now contains `hello ![image](https://...)world`. Cursor was correctly positioned at end of inserted markdown; user's next keystrokes appended where expected.
+
+If the cursor ended up at position 6 (before the image) or position 0 (start of textarea), the `setRangeText` path is not working — revisit Task 7 Step 3.
+
+- [ ] **Step 9: Verify Vercel `request.url` origin assumption (production only — one-time)**
+
+This verifies the assumption baked into `app/lib/origin.ts` Task 3: that Vercel preserves the public URL in `request.url` for Route Handlers. Only needed once, on the first production deploy.
+
+1. Before V2 is live, temporarily instrument `app/api/images/route.ts` with a one-shot log at the top of `POST`:
+
+```ts
+console.log('[origin-verify]', {
+  request_url_origin: new URL(request.url).origin,
+  origin_header: request.headers.get('origin'),
+  host_header: request.headers.get('host'),
+})
+```
+
+2. Deploy to Vercel. Trigger an image upload from `https://lukeyhlee.com/blog/new`.
+3. Open Vercel → Functions → Logs. Find the log entry.
+4. Confirm: `request_url_origin === origin_header === 'https://lukeyhlee.com'`.
+5. If they match, delete the instrumentation and redeploy. V2 origin check is safe to trust.
+6. If they DON'T match (Vercel uses an internal URL for `request.url`), revisit the Task 3 approach — we'd need to fall back to a `NEXT_PUBLIC_SITE_URL` env var or trust `x-forwarded-host`.
+
+- [ ] **Step 10: Push if V1 is already deployed**
 
 Check origin status:
 ```bash
@@ -946,7 +1057,7 @@ git log --oneline origin/main..HEAD
 
 If the list includes V1 commits too, push only when ready for the Vercel redeploy. If V1 already shipped and V2 is a separate release, this may be its own push. Coordinate with Luke — do not push automatically.
 
-- [ ] **Step 7: Final commit (nothing to change; this is a checklist task only)**
+- [ ] **Step 11: Final commit (nothing to change; this is a checklist task only)**
 
 No code change. The verification above is the task's deliverable. If you found issues in any step, fix them and add a commit describing the fix. If no issues, move on without a no-op commit.
 
@@ -954,7 +1065,7 @@ No code change. The verification above is the task's deliverable. If you found i
 
 ## Post-implementation checklist (for Luke)
 
-- [ ] Set `NEXT_PUBLIC_SITE_URL=https://lukeyhlee.com` in Vercel project env (Production + Preview). Without this, the V2 `/api/images` route returns `500 origin_misconfigured` on prod uploads.
+- [ ] Run Task 9 Step 9 (Vercel `request.url` origin verification) on the first production deploy. If the assumption holds, no env var needed.
 - [ ] Verify the `post-images` bucket exists in the **production** Supabase project (not just dev). Run the Task 1 migration against prod via the dashboard SQL editor if this is a separate project.
 - [ ] After the Vercel deploy, open the production editor at `https://lukeyhlee.com/blog/new` (admin-login first) and paste one image end-to-end to confirm the production path works.
 - [ ] Optional: add a nightly log-grep on Vercel Functions for `[api/images POST] storage_error` to catch silent upload failures.
