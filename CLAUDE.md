@@ -1,68 +1,66 @@
-# CLAUDE.md
+# bloomberg-portfolio
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project Overview
+
+Bloomberg-Terminal-styled Korean personal portfolio at lukeyhlee.com (Vercel). Single-page portfolio (`/`) + admin-authored blog (`/blog`) + guestbook + visit counter. Supabase backs persistence; admin auth via stateless HMAC cookie.
 
 @AGENTS.md
 
 ## Stack
 
-Next.js **16.2.2** (App Router) + React **19.2.4** + TypeScript (strict) + Tailwind CSS 3 + framer-motion + recharts. See `AGENTS.md` above — these versions post-date most training data, so verify APIs against `node_modules/next/dist/docs/` before coding, especially around `app/`, metadata, and client/server boundaries.
+Next.js **16.2.2** (App Router) + React **19.2.4** + TypeScript (strict) + Tailwind CSS 3 + framer-motion + recharts + Supabase JS SDK (service-role) + nanoid. Versions post-date most training data — verify APIs against `node_modules/next/dist/docs/` before coding.
 
 ## Commands
 
 ```bash
 npm run dev          # next dev — http://localhost:3000
-npm run build        # next build (also type-checks via Next's tsc pass)
-npm run start        # serve production build
+npm run build        # next build (also type-checks)
 npm run lint         # eslint (flat config, eslint.config.mjs)
-npx eslint app/page.tsx  # lint a single file
 ```
 
-No test suite exists in this repo — do not invent `npm test`. If adding tests, discuss the framework choice first.
+No test suite exists — do not invent `npm test`.
 
 ## Architecture
 
-This is a **single-page Bloomberg-Terminal-styled Korean portfolio**. Despite the multi-section navigation, there is only one route (`/`) and one page component.
+**Portfolio (`/`)** — single `"use client"` component (`BloombergPortfolio` in `app/page.tsx`, ~800 lines) owning all interactive state. Four presentational components in `app/components/`:
 
-### State lives in one place
+- `TerminalOverlay.tsx` — `/`-key triggered; commands in hardcoded `COMMANDS` table
+- `FKeyPanel.tsx` — F1-F6 detail panels; data in `FKEY_DATA` array
+- `ToolboxPanel.tsx` — tool cards; data in `tools` array
+- `RadarChart.tsx` — recharts `RadarChart` with **explicit `height: 280`** (don't regress — commit `082cb65` fixed a 0px-render bug)
 
-`app/page.tsx` is a ~690-line `"use client"` component (`BloombergPortfolio`) that owns *all* interactive state: active tab, active button, open project, typewriter text, guestbook messages, alert popup, scroll lock. The four files in `app/components/` are presentational/self-contained:
+**When adding a section to `/`:** update `sectionIds`, `sectionMap`, and `tabs` — all three must stay in sync.
 
-- `TerminalOverlay.tsx` — `/`-key-triggered fake terminal; command strings are a hardcoded `COMMANDS: Record<string, string>` table. Add new commands there, not via props.
-- `FKeyPanel.tsx` — Bloomberg F1–F6 key detail panels; data is a hardcoded `FKEY_DATA` array.
-- `ToolboxPanel.tsx` — daily-use tool cards; data is a hardcoded `tools` array.
-- `RadarChart.tsx` — recharts `RadarChart` with **explicit `height: 280`** (don't regress to `height="100%"` — recent commit `082cb65` fixed a 0px-render bug).
+**Blog (`/blog`)** — admin-authored markdown posts with three-state visibility (`draft`/`private`/`public`). Routes: `/blog` (admin list), `/blog/new`, `/blog/[slug]` (public detail), `/blog/[slug]/edit`. Components in `app/blog/_components/`: `PostEditor.tsx` (split-view editor; paste/drag-drop/INSERT-IMAGE button → uploads to Supabase Storage), `MarkdownView.tsx`, `PostListItem.tsx`, `StatusChip.tsx`. The editor textarea uses `setRangeText` for cursor-stable insertion and optimistic placeholder swap on upload.
 
-### Navigation model
+**Lib boundary (client/server split — strict):**
 
-Eight sections (`profile`, `skills`, `projects`, `now`, `toolbox`, `journey`, `guestbook`, `contact`) are stacked in one `<main>`. Navigation is scroll-based:
+- Client-safe: `posts-shared.ts`, `images-shared.ts`, `images-client.ts`, `api-response.ts`
+- Server-only: `supabase-server.ts`, `admin-session.ts`, `posts-server.ts`, `origin.ts`
+- *Never import a server-only file from a Client Component.* `*-shared.ts` modules exist precisely to keep this boundary clean.
 
-- Tab highlighting: a `scroll` listener walks `sectionIds` and sets `activeTab` by `rect.top <= threshold`. Threshold grows near the page bottom so lower sections can still activate.
-- Click navigation goes through `navigateTo(id)`, which sets `scrollLockRef.current = true` for 800ms to stop the scroll listener from fighting the smooth scroll.
-- Keys `1`–`8` scroll to sections (disabled when an input/textarea is focused). Key `/` opens the terminal.
-- Every section uses `scroll-mt-20` to offset the sticky header + nav.
+**API routes** (`app/api/`): `admin/{login,logout,me}`, `guestbook` + `guestbook/[id]`, `visits`, `posts` + `posts/[slug]`, `images`. All write-handlers use shared `NO_STORE_JSON_HEADERS` + `jsonError`/`jsonOk` from `app/lib/api-response.ts` — error shape is `{ error: string, detail?: string }` with `Cache-Control: no-store`.
 
-**When adding a section:** update the `sectionIds` array in the scroll effect, the `sectionMap` in the keydown effect, and the `tabs` array — all three must stay in sync.
+**Auth:** admin-only writes. `bb_admin` cookie is a stateless HMAC-SHA256 over `${expiry}.${hmac}` signed with `ADMIN_SESSION_SECRET` (≥32 chars), 24h TTL, `httpOnly`+`secure`+`sameSite=lax`. No server-side session store — cannot revoke a stolen cookie before expiry (accepted tradeoff for a single-admin site). Multipart endpoints (`/api/images`) add a same-origin check on top via `app/lib/origin.ts` (`new URL(request.url).origin`).
 
-### Persistence
+## Design System Constraints
 
-Client-only. No backend, no API routes, no database.
+- **Everything is square.** `globals.css` forces `border-radius: 0 !important`. Do not add rounded corners.
+- Colors in `bb-*` Tailwind namespace: `bb-orange` (#FF6600 accent), `bb-amber` (#FFB800 headers), `bb-green`/`bb-red` (market state). Use tokens, not raw hex.
+- Monospace font stack only.
 
-- `localStorage.bb_guestbook` — guestbook entries (capped at 50, newest first).
-- `localStorage.bb_my_msgs` — Set of IDs the current browser authored (controls delete-button visibility).
-- `sessionStorage.bb_alert_seen` — one-shot "Press / to open terminal" popup.
+## Gotchas
 
-### Design system constraints
+- `app/lib/supabase-server.ts` **intentionally** substitutes placeholder env vars during `NEXT_PHASE === 'phase-production-build'` — do NOT "fix" this, it will break Vercel builds. The module also throws at load time when env vars are missing in any other phase, so don't try the env-removal trick to simulate failures (rename the bucket constant instead).
+- `tsconfig.json` has `@/*` path alias but **no `src/` directory** — use relative imports.
+- `tailwind.config.ts` content globs include `./pages/**` and `./components/**` at repo root — neither exists; only `./app/**` is scanned.
+- Old `localStorage.bb_guestbook` / `bb_my_msgs` keys are gone — don't reintroduce.
+- Image-upload bucket `post-images` is **public-read**. Draft/private post images ARE URL-reachable via their unguessable `nanoid(12)` path. Documented in V2 spec §8; switch to signed URLs if private-by-default becomes a requirement.
+- `rehype-sanitize` default schema constrains rendered `<img src>` to `https://`. Supabase Storage URLs match; do not alter the schema.
 
-- **Everything is square.** `globals.css` forces `border-radius: 0 !important` on `*`, and `tailwind.config.ts` overrides *all* radius tokens (`sm`, `md`, `lg`, ..., `full`) to `0px`. Do not add rounded corners.
-- Colors live under the `bb` namespace in Tailwind: `bb-black`, `bb-orange` (#FF6600, primary accent), `bb-amber` (#FFB800, headers), `bb-green`/`bb-red` (market state), `bb-border` (#333), `bb-rowHover`. Use these tokens instead of raw hex.
-- Monospace font stack only (`font-mono` = `font-sans` here).
-- `.flicker-target` class marks elements that the global flicker interval in `page.tsx` randomly animates every 6s — add it to stat numbers for the Bloomberg feel.
-- `.panel-header` utility is the standard section header (amber, bordered, uppercase).
+## References
 
-### Intentionally absent / gotchas
-
-- `tsconfig.json` has `"paths": { "@/*": ["./src/*"] }` left over from `create-next-app`, but **there is no `src/` directory**. Use relative imports (`./components/...`) like the existing code does, or add a `src/` dir first if you want to use the alias.
-- `tailwind.config.ts` content globs include `./pages/**` and `./components/**` at the repo root — neither exists. Only `./app/**` is scanned in practice.
-- Page content is Korean (`<html lang="ko">`), but code identifiers and comments are English. Use `word-break: keep-all` (already on `body`) when adding Korean prose.
-- Deployment target is Vercel (`.vercel/` is present); there is no custom `next.config.ts` beyond the default export.
+- `SETUP.md` — Supabase setup + env vars (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PASSWORD`, `ADMIN_SESSION_SECRET` ≥32 chars)
+- `supabase/migrations/` — `0001_init.sql` (comments + visits_daily + visits_total + `increment_visit` RPC), `0002_posts.sql` (posts table; slug regex + status enum), `0003_post_images_bucket.sql` (public Storage bucket)
+- `docs/superpowers/specs/2026-04-18-blog-v2-image-upload-design.md` — V2 image-upload design (threat model, error lifecycle, parallel upload contract)
+- `docs/superpowers/plans/2026-04-18-blog-v2-image-upload-plan.md` — V2 implementation plan with literal code per task
