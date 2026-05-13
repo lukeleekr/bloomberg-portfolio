@@ -3,13 +3,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { customAlphabet } from 'nanoid'
 import { useRouter } from 'next/navigation'
-import type { Post, PostStatus } from '../../lib/posts-shared'
+import type { Post, PostStatus, PostTopic } from '../../lib/posts-shared'
 import {
+  DEFAULT_TOPIC,
+  POST_TOPICS,
   SLUG_MAX_LEN,
+  SUMMARY_MAX_LEN,
   TITLE_MAX_LEN,
   generateSlug,
   isValidSlug,
+  isValidSummary,
   isValidTitle,
+  isValidTopic,
 } from '../../lib/posts-shared'
 import { uploadImage, ImageClientError } from '../../lib/images-client'
 import { isAllowedInputMime } from '../../lib/images-shared'
@@ -22,6 +27,8 @@ type Props = { mode: 'create' } | { mode: 'edit'; initial: Post }
 type FormState = {
   title: string
   slug: string
+  summary: string
+  topic: PostTopic
   body_md: string
   status: PostStatus
 }
@@ -30,6 +37,8 @@ function toForm(post: Post | null): FormState {
   return {
     title: post?.title ?? '',
     slug: post?.slug ?? '',
+    summary: post?.summary ?? '',
+    topic: post?.topic ?? DEFAULT_TOPIC,
     body_md: post?.body_md ?? '',
     status: post?.status ?? 'draft',
   }
@@ -39,6 +48,8 @@ function snapshotsEqual(a: FormState, b: FormState) {
   return (
     a.title === b.title &&
     a.slug === b.slug &&
+    a.summary === b.summary &&
+    a.topic === b.topic &&
     a.body_md === b.body_md &&
     a.status === b.status
   )
@@ -236,6 +247,14 @@ export default function PostEditor(props: Props) {
       )
       return
     }
+    if (!isValidSummary(form.summary.trim())) {
+      setError(`Summary must be ${SUMMARY_MAX_LEN} chars or fewer`)
+      return
+    }
+    if (!isValidTopic(form.topic)) {
+      setError('Choose a valid topic')
+      return
+    }
 
     setSaving(true)
     try {
@@ -247,6 +266,8 @@ export default function PostEditor(props: Props) {
         body: JSON.stringify({
           title: form.title.trim(),
           slug: form.slug,
+          summary: form.summary.trim(),
+          topic: form.topic,
           body_md: form.body_md,
           status: form.status,
         }),
@@ -345,7 +366,7 @@ export default function PostEditor(props: Props) {
         </div>
       </header>
 
-      <section className='grid gap-3 border-b border-bb-gray/30 px-6 py-4 md:grid-cols-[1fr_auto_auto] md:items-center'>
+      <section className='grid gap-3 border-b border-bb-gray/30 px-6 py-4 md:grid-cols-[1fr_auto_auto] md:items-start'>
         <div>
           <label className='mb-1 block text-xs uppercase text-bb-gray'>Title</label>
           <input
@@ -357,6 +378,19 @@ export default function PostEditor(props: Props) {
             placeholder='Post title'
             className='w-full border border-bb-gray/40 bg-black px-3 py-2 text-bb-white outline-none focus:border-bb-orange'
           />
+          <label className='mt-3 mb-1 block text-xs uppercase text-bb-gray'>
+            Summary
+          </label>
+          <textarea
+            value={form.summary}
+            onChange={(e) => setForm((f) => ({ ...f, summary: e.target.value }))}
+            maxLength={SUMMARY_MAX_LEN}
+            placeholder='One sharp reader-facing summary for the blog index and previews'
+            className='h-20 w-full resize-none border border-bb-gray/40 bg-black px-3 py-2 text-sm text-bb-white outline-none focus:border-bb-orange'
+          />
+          <div className='mt-1 text-xs text-bb-gray'>
+            {form.summary.length}/{SUMMARY_MAX_LEN} chars
+          </div>
         </div>
         <div>
           <label className='mb-1 block text-xs uppercase text-bb-gray'>Slug</label>
@@ -392,8 +426,22 @@ export default function PostEditor(props: Props) {
           )}
         </div>
         <div>
+          <label className='mb-1 block text-xs uppercase text-bb-gray'>Topic</label>
+          <select
+            value={form.topic}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, topic: e.target.value as PostTopic }))
+            }
+            className='mb-3 w-full border border-bb-gray/40 bg-black px-3 py-2 text-sm text-bb-white outline-none focus:border-bb-orange'
+          >
+            {POST_TOPICS.map((topic) => (
+              <option key={topic.value} value={topic.value}>
+                {topic.label}
+              </option>
+            ))}
+          </select>
           <label className='mb-1 block text-xs uppercase text-bb-gray'>Status</label>
-          <div className='flex items-center gap-3'>
+          <div className='flex flex-wrap items-center gap-3'>
             {(['draft', 'private', 'public'] as const).map((s) => (
               <label
                 key={s}

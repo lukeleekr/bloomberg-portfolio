@@ -1,6 +1,6 @@
 import { formatInTimeZone } from 'date-fns-tz'
 import Link from 'next/link'
-import { excerpt } from '../../lib/posts-shared'
+import { excerpt, readingTimeMinutes, topicLabel } from '../../lib/posts-shared'
 import type { Post } from '../../lib/posts-shared'
 import StatusChip from './StatusChip'
 
@@ -17,23 +17,34 @@ function formatKst(iso: string): string {
 
 export default function PostListItem({ post }: { post: Post }) {
   const ts = post.published_at ?? post.created_at
+  const summary = post.summary || excerpt(post.body_md, 200)
+  const readMins = readingTimeMinutes(post.body_md)
 
   return (
-    <li className='grid grid-cols-[140px_1fr] items-baseline gap-4 border-b border-bb-gray/30 py-3'>
-      <span className='text-xs tabular-nums text-bb-gray'>
-        {formatKst(ts)} KST
-      </span>
+    <li className='grid gap-4 border-b border-bb-gray/30 py-4 md:grid-cols-[132px_1fr]'>
+      <div className='text-xs tabular-nums text-bb-gray'>
+        <div>{formatKst(ts).slice(0, 10)}</div>
+        <span className='mt-2 inline-block border border-bb-gray/40 px-2 py-0.5'>
+          {readMins} MIN
+        </span>
+      </div>
       <div>
+        <div className='mb-2 flex flex-wrap items-center gap-2'>
+          <Link
+            href={`/blog?topic=${post.topic}`}
+            className='border border-bb-orange px-2 py-0.5 text-xs uppercase text-bb-orange hover:bg-bb-orange hover:text-black'
+          >
+            {topicLabel(post.topic)}
+          </Link>
+          <StatusChip status={post.status} />
+        </div>
         <Link
           href={`/blog/${post.slug}`}
           className='text-bb-white transition-colors hover:text-bb-orange'
         >
           {post.title}
         </Link>
-        <StatusChip status={post.status} />
-        <p className='mt-1 truncate text-sm text-bb-gray'>
-          {excerpt(post.body_md, 200)}
-        </p>
+        <p className='mt-2 text-sm leading-relaxed text-bb-gray'>{summary}</p>
       </div>
     </li>
   )

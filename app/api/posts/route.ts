@@ -1,9 +1,13 @@
 import { isAdminRequest } from '../../lib/admin-session'
 import {
+  DEFAULT_TOPIC,
   isValidSlug,
   isValidStatus,
+  isValidSummary,
   isValidTitle,
+  isValidTopic,
   SLUG_MAX_LEN,
+  SUMMARY_MAX_LEN,
   TITLE_MAX_LEN,
   TITLE_MIN_LEN,
 } from '../../lib/posts-shared'
@@ -34,6 +38,8 @@ export async function POST(request: Request) {
   const b = body as Record<string, unknown>
   const title = typeof b.title === 'string' ? b.title.trim() : ''
   const slug = typeof b.slug === 'string' ? b.slug.trim() : ''
+  const summary = typeof b.summary === 'string' ? b.summary.trim() : ''
+  const topic = b.topic ?? DEFAULT_TOPIC
   const body_md = typeof b.body_md === 'string' ? b.body_md : ''
   const status = b.status
 
@@ -51,6 +57,16 @@ export async function POST(request: Request) {
       `lowercase a-z, 0-9, single hyphens, no leading/trailing hyphen; 1-${SLUG_MAX_LEN} chars`
     )
   }
+  if (!isValidSummary(summary)) {
+    return jsonError(
+      'invalid_summary',
+      400,
+      `summary must be ${SUMMARY_MAX_LEN} chars or fewer`
+    )
+  }
+  if (!isValidTopic(topic)) {
+    return jsonError('invalid_topic', 400)
+  }
   if (!isValidStatus(status)) {
     return jsonError('invalid_status', 400)
   }
@@ -59,7 +75,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const post = await createPost({ title, slug, body_md, status })
+    const post = await createPost({ title, slug, summary, topic, body_md, status })
     return new Response(JSON.stringify({ post }), {
       status: 201,
       headers: NO_STORE_JSON_HEADERS,
