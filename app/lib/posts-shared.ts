@@ -4,11 +4,21 @@
 import { customAlphabet } from 'nanoid'
 
 export type PostStatus = 'draft' | 'private' | 'public'
+export type PostTopic =
+  | 'macro'
+  | 'markets'
+  | 'credit'
+  | 'ai'
+  | 'korea'
+  | 'portfolio'
+  | 'notes'
 
 export type Post = {
   id: string
   slug: string
   title: string
+  summary: string
+  topic: PostTopic
   body_md: string
   status: PostStatus
   created_at: string
@@ -20,6 +30,18 @@ export const SLUG_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 export const SLUG_MAX_LEN = 60
 export const TITLE_MIN_LEN = 1
 export const TITLE_MAX_LEN = 120
+export const SUMMARY_MAX_LEN = 240
+export const DEFAULT_TOPIC: PostTopic = 'notes'
+
+export const POST_TOPICS: Array<{ value: PostTopic; label: string }> = [
+  { value: 'macro', label: 'Macro' },
+  { value: 'markets', label: 'Markets' },
+  { value: 'credit', label: 'Credit' },
+  { value: 'ai', label: 'AI' },
+  { value: 'korea', label: 'Korea' },
+  { value: 'portfolio', label: 'Portfolio' },
+  { value: 'notes', label: 'Notes' },
+]
 
 // Lowercase alphanumeric only. No hyphens in auto-generated slugs — hyphens
 // are legal in user-typed slugs but awkward when randomly placed.
@@ -37,8 +59,20 @@ export function isValidTitle(title: string): boolean {
   return len >= TITLE_MIN_LEN && len <= TITLE_MAX_LEN
 }
 
+export function isValidSummary(summary: string): boolean {
+  return summary.length <= SUMMARY_MAX_LEN
+}
+
 export function isValidStatus(s: unknown): s is PostStatus {
   return s === 'draft' || s === 'private' || s === 'public'
+}
+
+export function isValidTopic(topic: unknown): topic is PostTopic {
+  return POST_TOPICS.some((t) => t.value === topic)
+}
+
+export function topicLabel(topic: PostTopic): string {
+  return POST_TOPICS.find((t) => t.value === topic)?.label ?? 'Notes'
 }
 
 // Strip common markdown syntax so a post body previews as plain-ish text.
@@ -56,4 +90,12 @@ export function excerpt(bodyMd: string, maxLen = 200): string {
 
   if (cleaned.length <= maxLen) return cleaned
   return cleaned.slice(0, maxLen).trimEnd() + '…'
+}
+
+export function readingTimeMinutes(bodyMd: string): number {
+  const cleaned = excerpt(bodyMd, Number.MAX_SAFE_INTEGER)
+  if (!cleaned) return 1
+
+  const wordCount = cleaned.split(/\s+/).filter(Boolean).length
+  return Math.max(1, Math.ceil(wordCount / 220))
 }

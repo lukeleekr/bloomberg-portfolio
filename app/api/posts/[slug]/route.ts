@@ -2,8 +2,11 @@ import { isAdminRequest } from '../../../lib/admin-session'
 import {
   isValidSlug,
   isValidStatus,
+  isValidSummary,
   isValidTitle,
+  isValidTopic,
   SLUG_MAX_LEN,
+  SUMMARY_MAX_LEN,
   TITLE_MAX_LEN,
   TITLE_MIN_LEN,
 } from '../../../lib/posts-shared'
@@ -76,6 +79,21 @@ export async function PATCH(request: Request, ctx: RouteContext) {
       )
     }
     update.slug = s
+  }
+  if (typeof b.summary === 'string') {
+    const summary = b.summary.trim()
+    if (!isValidSummary(summary)) {
+      return jsonError(
+        'invalid_summary',
+        400,
+        `summary must be ${SUMMARY_MAX_LEN} chars or fewer`
+      )
+    }
+    update.summary = summary
+  }
+  if (b.topic !== undefined) {
+    if (!isValidTopic(b.topic)) return jsonError('invalid_topic', 400)
+    update.topic = b.topic
   }
   if (typeof b.body_md === 'string') {
     update.body_md = b.body_md

@@ -1,13 +1,29 @@
 import Link from 'next/link'
 import { isAdminFromCookies } from '../lib/admin-session'
 import { listPostsForAdmin, listPublicPosts } from '../lib/posts-server'
+import { isValidTopic, POST_TOPICS, topicLabel } from '../lib/posts-shared'
 import PostListItem from './_components/PostListItem'
 
 export const dynamic = 'force-dynamic'
 
-export default async function BlogListPage() {
+type PageProps = {
+  searchParams: Promise<{ topic?: string | string[] }>
+}
+
+export default async function BlogListPage({ searchParams }: PageProps) {
   const admin = await isAdminFromCookies()
   const posts = admin ? await listPostsForAdmin() : await listPublicPosts()
+  const query = await searchParams
+  const topicParam = Array.isArray(query.topic) ? query.topic[0] : query.topic
+  const activeTopic = isValidTopic(topicParam) ? topicParam : null
+  const visiblePosts = activeTopic
+    ? posts.filter((post) => post.topic === activeTopic)
+    : posts
+
+  const topicCounts = new Map<string, number>()
+  for (const post of posts) {
+    topicCounts.set(post.topic, (topicCounts.get(post.topic) ?? 0) + 1)
+  }
 
   return (
     <main className='min-h-screen bg-bb-dark font-mono text-bb-white'>
@@ -28,12 +44,50 @@ export default async function BlogListPage() {
         )}
       </header>
 
-      <section className='mx-auto max-w-[900px] px-6 py-6'>
-        {posts.length === 0 ? (
+      <section className='mx-auto max-w-[850px] px-6 py-6'>
+        <div className='mb-5 flex flex-wrap items-center gap-2'>
+          <Link
+            href='/blog'
+            className={`border px-2 py-1 text-xs ${
+              activeTopic === null
+                ? 'border-bb-amber bg-[#1a1300] text-bb-amber'
+                : 'border-bb-gray/40 text-bb-gray hover:border-bb-orange hover:text-bb-orange'
+            }`}
+          >
+            ALL {posts.length}
+          </Link>
+          {POST_TOPICS.map((topic) => {
+            const count = topicCounts.get(topic.value) ?? 0
+            if (count === 0) return null
+            const active = activeTopic === topic.value
+            return (
+              <Link
+                key={topic.value}
+                href={`/blog?topic=${topic.value}`}
+                className={`border px-2 py-1 text-xs ${
+                  active
+                    ? 'border-bb-amber bg-[#1a1300] text-bb-amber'
+                    : 'border-bb-gray/40 text-bb-gray hover:border-bb-orange hover:text-bb-orange'
+                }`}
+              >
+                {topic.label.toUpperCase()} {count}
+              </Link>
+            )
+          })}
+        </div>
+
+        {activeTopic ? (
+          <div className='mb-4 border-b border-bb-gray/30 pb-3 text-xs uppercase text-bb-gray'>
+            Showing <span className='text-bb-amber'>{topicLabel(activeTopic)}</span>{' '}
+            notes
+          </div>
+        ) : null}
+
+        {visiblePosts.length === 0 ? (
           <p className='py-24 text-center text-lg text-bb-amber'>NO POSTS YET</p>
         ) : (
           <ul>
-            {posts.map((post) => (
+            {visiblePosts.map((post) => (
               <PostListItem key={post.id} post={post} />
             ))}
           </ul>

@@ -1,10 +1,10 @@
 // Server-only DB access for posts. Imports the service-role client — NEVER
 // import this module from a Client Component or from posts-shared.ts.
 import { supabaseServer } from './supabase-server'
-import type { Post, PostStatus } from './posts-shared'
+import type { Post, PostStatus, PostTopic } from './posts-shared'
 
 const COLUMNS =
-  'id, slug, title, body_md, status, created_at, updated_at, published_at'
+  'id, slug, title, summary, topic, body_md, status, created_at, updated_at, published_at'
 
 export async function listPostsForAdmin(): Promise<Post[]> {
   // Sort admin list by "most relevant date": published_at when present,
@@ -47,6 +47,8 @@ export async function getPostBySlug(slug: string): Promise<Post | null> {
 export type CreatePostInput = {
   slug: string
   title: string
+  summary: string
+  topic: PostTopic
   body_md: string
   status: PostStatus
 }
@@ -64,7 +66,7 @@ export async function createPost(input: CreatePostInput): Promise<Post> {
 }
 
 export type UpdatePostInput = Partial<
-  Pick<Post, 'slug' | 'title' | 'body_md' | 'status'>
+  Pick<Post, 'slug' | 'title' | 'summary' | 'topic' | 'body_md' | 'status'>
 >
 
 export async function updatePost(

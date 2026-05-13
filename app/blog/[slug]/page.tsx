@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { isAdminFromCookies } from '../../lib/admin-session'
-import { excerpt } from '../../lib/posts-shared'
+import { excerpt, readingTimeMinutes, topicLabel } from '../../lib/posts-shared'
 import { getPostBySlug } from '../../lib/posts-server'
 import MarkdownView from '../_components/MarkdownView'
 import StatusChip from '../_components/StatusChip'
@@ -32,7 +32,7 @@ export async function generateMetadata({
   const admin = await isAdminFromCookies()
   if (post.status !== 'public' && !admin) return { title: 'Not Found' }
 
-  const description = excerpt(post.body_md, 160)
+  const description = post.summary || excerpt(post.body_md, 160)
 
   return {
     title: post.title,
@@ -56,6 +56,7 @@ export default async function BlogDetailPage({ params }: PageProps) {
   if (post.status !== 'public' && !admin) notFound()
 
   const ts = post.published_at ?? post.created_at
+  const readMins = readingTimeMinutes(post.body_md)
 
   return (
     <main className='min-h-screen bg-bb-dark font-mono text-bb-white'>
@@ -88,6 +89,19 @@ export default async function BlogDetailPage({ params }: PageProps) {
           <div>
             <div className='text-xs uppercase text-bb-gray'>Date</div>
             <div className='text-bb-white'>{formatKst(ts)} KST</div>
+          </div>
+          <div>
+            <div className='text-xs uppercase text-bb-gray'>Topic</div>
+            <Link
+              href={`/blog?topic=${post.topic}`}
+              className='inline-block border border-bb-orange px-2 py-0.5 text-xs uppercase text-bb-orange hover:bg-bb-orange hover:text-black'
+            >
+              {topicLabel(post.topic)}
+            </Link>
+          </div>
+          <div>
+            <div className='text-xs uppercase text-bb-gray'>Read</div>
+            <div className='text-bb-white'>{readMins} MIN</div>
           </div>
           <div>
             <div className='text-xs uppercase text-bb-gray'>Status</div>
