@@ -1,7 +1,12 @@
 import Link from 'next/link'
 import { isAdminFromCookies } from '../lib/admin-session'
 import { listPostsForAdmin, listPublicPosts } from '../lib/posts-server'
-import { isValidTopic, POST_TOPICS, topicLabel } from '../lib/posts-shared'
+import {
+  isValidTopic,
+  POST_TOPICS,
+  topicFilterClassName,
+  topicLabel,
+} from '../lib/posts-shared'
 import PostListItem from './_components/PostListItem'
 
 export const dynamic = 'force-dynamic'
@@ -64,11 +69,7 @@ export default async function BlogListPage({ searchParams }: PageProps) {
               <Link
                 key={topic.value}
                 href={`/blog?topic=${topic.value}`}
-                className={`border px-2 py-1 text-xs ${
-                  active
-                    ? 'border-bb-amber bg-[#1a1300] text-bb-amber'
-                    : 'border-bb-gray/40 text-bb-gray hover:border-bb-orange hover:text-bb-orange'
-                }`}
+                className={topicFilterClassName(topic.value, active)}
               >
                 {topic.label.toUpperCase()} {count}
               </Link>

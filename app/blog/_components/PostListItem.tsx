@@ -1,6 +1,11 @@
 import { formatInTimeZone } from 'date-fns-tz'
 import Link from 'next/link'
-import { excerpt, readingTimeMinutes, topicLabel } from '../../lib/posts-shared'
+import {
+  excerpt,
+  readingTimeMinutes,
+  topicBadgeClassName,
+  topicLabel,
+} from '../../lib/posts-shared'
 import type { Post } from '../../lib/posts-shared'
 import StatusChip from './StatusChip'
 
@@ -32,7 +37,7 @@ export default function PostListItem({ post }: { post: Post }) {
         <div className='mb-2 flex flex-wrap items-center gap-2'>
           <Link
             href={`/blog?topic=${post.topic}`}
-            className='border border-bb-orange px-2 py-0.5 text-xs uppercase text-bb-orange hover:bg-bb-orange hover:text-black'
+            className={topicBadgeClassName(post.topic)}
           >
             {topicLabel(post.topic)}
           </Link>

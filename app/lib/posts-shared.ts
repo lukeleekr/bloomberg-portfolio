@@ -43,6 +43,23 @@ export const POST_TOPICS: Array<{ value: PostTopic; label: string }> = [
   { value: 'notes', label: 'Notes' },
 ]
 
+const TOPIC_COLOR_CLASSES: Record<PostTopic, string> = {
+  macro:
+    'border-bb-amber bg-[#1a1300] text-bb-amber hover:bg-bb-amber hover:text-black',
+  markets:
+    'border-bb-green bg-[#001a08] text-bb-green hover:bg-bb-green hover:text-black',
+  credit:
+    'border-bb-red bg-[#1a0000] text-bb-red hover:bg-bb-red hover:text-black',
+  ai:
+    'border-bb-orange bg-[#1a0a00] text-bb-orange hover:bg-bb-orange hover:text-black',
+  korea:
+    'border-[#66ccff] bg-[#00121a] text-[#66ccff] hover:bg-[#66ccff] hover:text-black',
+  portfolio:
+    'border-[#b388ff] bg-[#14001f] text-[#b388ff] hover:bg-[#b388ff] hover:text-black',
+  notes:
+    'border-bb-gray/50 bg-[#111111] text-bb-gray hover:border-bb-gray hover:text-bb-white',
+}
+
 // Lowercase alphanumeric only. No hyphens in auto-generated slugs — hyphens
 // are legal in user-typed slugs but awkward when randomly placed.
 export const generateSlug = customAlphabet(
@@ -73,6 +90,16 @@ export function isValidTopic(topic: unknown): topic is PostTopic {
 
 export function topicLabel(topic: PostTopic): string {
   return POST_TOPICS.find((t) => t.value === topic)?.label ?? 'Notes'
+}
+
+export function topicBadgeClassName(topic: PostTopic): string {
+  return `border px-2 py-0.5 text-xs uppercase transition-colors ${TOPIC_COLOR_CLASSES[topic]}`
+}
+
+export function topicFilterClassName(topic: PostTopic, active: boolean): string {
+  return `border px-2 py-1 text-xs transition-colors ${TOPIC_COLOR_CLASSES[topic]} ${
+    active ? 'font-semibold ring-1 ring-current' : ''
+  }`
 }
 
 // Strip common markdown syntax so a post body previews as plain-ish text.

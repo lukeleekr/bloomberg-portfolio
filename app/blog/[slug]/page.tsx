@@ -3,7 +3,12 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { isAdminFromCookies } from '../../lib/admin-session'
-import { excerpt, readingTimeMinutes, topicLabel } from '../../lib/posts-shared'
+import {
+  excerpt,
+  readingTimeMinutes,
+  topicBadgeClassName,
+  topicLabel,
+} from '../../lib/posts-shared'
 import { getPostBySlug } from '../../lib/posts-server'
 import MarkdownView from '../_components/MarkdownView'
 import StatusChip from '../_components/StatusChip'
@@ -94,7 +99,7 @@ export default async function BlogDetailPage({ params }: PageProps) {
             <div className='text-xs uppercase text-bb-gray'>Topic</div>
             <Link
               href={`/blog?topic=${post.topic}`}
-              className='inline-block border border-bb-orange px-2 py-0.5 text-xs uppercase text-bb-orange hover:bg-bb-orange hover:text-black'
+              className={`inline-block ${topicBadgeClassName(post.topic)}`}
             >
               {topicLabel(post.topic)}
             </Link>
