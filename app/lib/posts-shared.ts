@@ -45,9 +45,9 @@ export const POST_TOPICS: Array<{ value: PostTopic; label: string }> = [
 
 const TOPIC_COLOR_CLASSES: Record<PostTopic, string> = {
   macro:
-    'border-bb-amber bg-[#1a1300] text-bb-amber hover:bg-bb-amber hover:text-black',
-  markets:
     'border-bb-green bg-[#001a08] text-bb-green hover:bg-bb-green hover:text-black',
+  markets:
+    'border-bb-amber bg-[#1a1300] text-bb-amber hover:bg-bb-amber hover:text-black',
   credit:
     'border-bb-red bg-[#1a0000] text-bb-red hover:bg-bb-red hover:text-black',
   ai:

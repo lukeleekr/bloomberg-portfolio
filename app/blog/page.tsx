@@ -53,10 +53,8 @@ export default async function BlogListPage({ searchParams }: PageProps) {
         <div className='mb-5 flex flex-wrap items-center gap-2'>
           <Link
             href='/blog'
-            className={`border px-2 py-1 text-xs ${
-              activeTopic === null
-                ? 'border-bb-amber bg-[#1a1300] text-bb-amber'
-                : 'border-bb-gray/40 text-bb-gray hover:border-bb-orange hover:text-bb-orange'
+            className={`border border-bb-orange bg-[#1a0a00] px-2 py-1 text-xs text-bb-orange transition-colors hover:bg-bb-orange hover:text-black ${
+              activeTopic === null ? 'font-semibold ring-1 ring-current' : ''
             }`}
           >
             ALL {posts.length}
