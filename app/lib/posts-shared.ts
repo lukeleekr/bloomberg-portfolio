@@ -51,7 +51,7 @@ const TOPIC_COLOR_CLASSES: Record<PostTopic, string> = {
   credit:
     'border-bb-red bg-[#1a0000] text-bb-red hover:bg-bb-red hover:text-black',
   ai:
-    'border-bb-orange bg-[#1a0a00] text-bb-orange hover:bg-bb-orange hover:text-black',
+    'border-[#ff4fd8] bg-[#1a0014] text-[#ff4fd8] hover:bg-[#ff4fd8] hover:text-black',
   korea:
     'border-[#66ccff] bg-[#00121a] text-[#66ccff] hover:bg-[#66ccff] hover:text-black',
   portfolio:
